@@ -1,0 +1,90 @@
+# CD — package Hardened v2 evidence + source archive on version tags
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Why is this release being cut?"
+        required: false
+        default: "manual"
+
+env:
+  PYTHONPATH: vendor:.
+  PIP_INDEX_URL: https://pypi.org/simple
+  PIP_TRUSTED_HOST: "pypi.org files.pythonhosted.org"
+
+jobs:
+  release:
+    name: Build release artifacts
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install system + Python deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends g++ gcc make zip
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Full validation
+        run: bash scripts/validate_all.sh
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        run: docker build -t atl-edge:hardened-${{ github.ref_name }} .
+
+      - name: Package source tree (no binaries)
+        run: |
+          zip -r /tmp/atl_edge_smarttoken_integrated_hardened_v2-src.zip . \
+            -x "*.pyc" -x "*__pycache__*" -x "*.so" -x "friction_demo" \
+            -x ".git/*" -x "build/*"
+
+      - name: Package data room
+        run: |
+          mkdir -p /tmp/data_room
+          cp testbench/last_report.json testbench/perf_report.md testbench/perf_report.json /tmp/data_room/
+          cp docs/THREAT_MODEL.md docs/QUICKSTART.md /tmp/data_room/
+          cp data_room/COMPARISON.md data_room/PRODUCT_MANIFEST.md data_room/README.md /tmp/data_room/ 2>/dev/null || true
+          python scripts/write_release_validation.py /tmp/data_room/VALIDATION_REPORT.md
+          (cd /tmp/data_room && zip -r /tmp/ATL_Edge_DataRoom_Hardened_v2.zip .)
+          sha256sum /tmp/atl_edge_smarttoken_integrated_hardened_v2-src.zip \
+                    /tmp/ATL_Edge_DataRoom_Hardened_v2.zip | tee /tmp/CHECKSUMS.sha256
+
+      - name: Upload release artifacts (workflow)
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-packages
+          path: |
+            /tmp/atl_edge_smarttoken_integrated_hardened_v2-src.zip
+            /tmp/ATL_Edge_DataRoom_Hardened_v2.zip
+            /tmp/CHECKSUMS.sha256
+            testbench/last_report.json
+            testbench/perf_report.md
+          retention-days: 90
+
+      - name: Create GitHub Release (tags only)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            /tmp/atl_edge_smarttoken_integrated_hardened_v2-src.zip
+            /tmp/ATL_Edge_DataRoom_Hardened_v2.zip
+            /tmp/CHECKSUMS.sha256
+            testbench/last_report.json
+            testbench/perf_report.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

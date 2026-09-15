@@ -1,0 +1,1 @@
+{"schema_version":1,"tool":"normalize","operation":"read","arguments":{"raw":" text "},"steps":[{"id":"s1","tool":"validate","operation":"validate","depends_on":[]}]}

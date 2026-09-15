@@ -1,0 +1,208 @@
+{
+  "started_at": "2026-09-15T17:42:27Z",
+  "finished_at": "2026-09-15T17:42:30Z",
+  "environment": {
+    "smart_token_prod_importable": true,
+    "pqcrypto": true,
+    "cryptography": true,
+    "native_friction": true,
+    "version": "0.4.4",
+    "error": null
+  },
+  "summary": {
+    "passed": 14,
+    "failed": 0,
+    "skipped": 0,
+    "total": 14,
+    "ok": true
+  },
+  "cases": [
+    {
+      "id": "A1",
+      "title": "Key binding: ss alone cannot decrypt (property)",
+      "status": "PASS",
+      "detail": "",
+      "evidence": {
+        "real_key_prefix": "7393e9237648bd8d",
+        "attacker_key_prefix": "3b9c709c3c9b25b0",
+        "unbound_key_prefix": "fc842c30ea5dab87",
+        "wrong_master_error": "InvalidTag",
+        "unbound_error": "InvalidTag",
+        "legitimate_recover_ok": true
+      },
+      "duration_ms": 1.5156370000113384
+    },
+    {
+      "id": "A6",
+      "title": "Low-level bypass model (unbound vs bound)",
+      "status": "PASS",
+      "detail": "",
+      "evidence": {
+        "bypass_blocked": true,
+        "error": "InvalidTag",
+        "bound_eq_unbound": false
+      },
+      "duration_ms": 0.034733999996205966
+    },
+    {
+      "id": "A2",
+      "title": ".stok does not embed sk",
+      "status": "PASS",
+      "detail": "",
+      "evidence": {
+        "stok_has_sk_attribute_set": false,
+        "sk_in_serialized_dict": false,
+        "key_file_exists": true,
+        "key_file_size": 3231,
+        "stok_size": 3625,
+        "pass_criteria": "sk_in_serialized_dict == False and key_file_exists"
+      },
+      "duration_ms": 4.470660000038151
+    },
+    {
+      "id": "A3",
+      "title": "Wrong master_secret fails + friction",
+      "status": "PASS",
+      "detail": "",
+      "evidence": {
+        "plaintext_is_none": true,
+        "recoverable": false,
+        "header_mac_ok": false,
+        "error": "header_mac_mismatch",
+        "info_keys": [
+          "error",
+          "friction_before",
+          "header_mac_ok",
+          "path",
+          "recoverable"
+        ]
+      },
+      "duration_ms": 1.8441120000716182
+    },
+    {
+      "id": "A4",
+      "title": "Missing sk fails + friction",
+      "status": "PASS",
+      "detail": "",
+      "evidence": {
+        "plaintext_is_none": true,
+        "recoverable": false,
+        "mlkem_error": "sk no disponible (suministre --key / archivo .stok.key)",
+        "friction_fail_count": null
+      },
+      "duration_ms": 2.9448039999806497
+    },
+    {
+      "id": "A5",
+      "title": "Ciphertext tampering fails closed",
+      "status": "PASS",
+      "detail": "",
+      "evidence": {
+        "plaintext_is_none": true,
+        "recoverable": false,
+        "aes_gcm_ok": null,
+        "aes_error": null
+      },
+      "duration_ms": 2.0787180000070293
+    },
+    {
+      "id": "A7",
+      "title": "Friction persistence across opens",
+      "status": "PASS",
+      "detail": "",
+      "evidence": {
+        "fail_counts": [
+          1,
+          2,
+          3
+        ],
+        "monotonic": true,
+        "reached_at_least_3": true
+      },
+      "duration_ms": 1506.5547939999533
+    },
+    {
+      "id": "A8",
+      "title": "Legitimate round-trip",
+      "status": "PASS",
+      "detail": "",
+      "evidence": {
+        "payload_match": true,
+        "recoverable": true,
+        "aes_gcm_ok": true,
+        "payload_len": 51
+      },
+      "duration_ms": 3.2684089999293064
+    },
+    {
+      "id": "A9",
+      "title": "Coherence/material mismatch fails closed",
+      "status": "PASS",
+      "detail": "",
+      "evidence": {
+        "plaintext_is_none": true,
+        "recoverable": false,
+        "coherence_info": {}
+      },
+      "duration_ms": 2.4444470000162255
+    },
+    {
+      "id": "A10",
+      "title": "Tampered friction_snapshot fails header MAC",
+      "status": "PASS",
+      "detail": "",
+      "evidence": {
+        "plaintext_is_none": true,
+        "header_mac_ok": false,
+        "error": "header_mac_mismatch"
+      },
+      "duration_ms": 1506.534436000038
+    },
+    {
+      "id": "A11",
+      "title": "Tampered public_label fails header MAC",
+      "status": "PASS",
+      "detail": "",
+      "evidence": {
+        "plaintext_is_none": true,
+        "header_mac_ok": false
+      },
+      "duration_ms": 2.331378999997469
+    },
+    {
+      "id": "A12",
+      "title": "Tampered salt fails header MAC",
+      "status": "PASS",
+      "detail": "",
+      "evidence": {
+        "plaintext_is_none": true,
+        "header_mac_ok": false
+      },
+      "duration_ms": 2.1561460000611987
+    },
+    {
+      "id": "A15",
+      "title": "Mixed .stok A + key B fails closed",
+      "status": "PASS",
+      "detail": "",
+      "evidence": {
+        "plaintext_is_none": true,
+        "recoverable": false,
+        "mlkem_ok": true,
+        "aes_gcm_ok": false
+      },
+      "duration_ms": 4.21620300005543
+    },
+    {
+      "id": "A17",
+      "title": "Truncated .stok fails closed",
+      "status": "PASS",
+      "detail": "truncated file rejected with exception",
+      "evidence": {
+        "raised": true,
+        "error_type": "ValueError"
+      },
+      "duration_ms": 1.6995810000253186
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+.git
+**/__pycache__
+**/*.pyc
+**/*.so
+build/
+**/friction_demo
+**/.atl/
+**/inbox/
+**/outbox/
+*.egg-info
+.pytest_cache

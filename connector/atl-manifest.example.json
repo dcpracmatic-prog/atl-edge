@@ -1,0 +1,9 @@
+{
+  "organization_id": "org-example",
+  "instance_id": "aws-prod-01",
+  "node_id": "agent-node-01",
+  "agent_id": "premium-agent-01",
+  "skills": ["payroll_summary:v1", "expense_analysis:v1"],
+  "policies": ["payroll-summary", "expense-summary"],
+  "transport": {"mode": "outbound", "endpoint": "https://atl.example.invalid"}
+}
