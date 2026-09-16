@@ -3,6 +3,9 @@
 
 name: CI
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main, master, hardened-v2]
@@ -290,7 +293,8 @@ jobs:
           echo "health:"; cat /tmp/health.json; echo
           curl -sf http://127.0.0.1:8787/v1/status | tee /tmp/status.json
           python -c 'import json; s=json.load(open("/tmp/health.json")); assert s.get("ok") is True'
-          --- /tmp/ci-main.yml	2026-09-16 11:41:33.933157010 -0600
+          python -c 'import json; s=json.load(open("/tmp/status.json")); assert "smart_token_prod_available" in s'
+
   # ------------------------------------------------------------------
   # 6. Operator console secure-behavior selftest
   # ------------------------------------------------------------------
