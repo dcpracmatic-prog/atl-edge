@@ -352,6 +352,19 @@ def main() -> int:
     st = sub.add_parser("status")
     st.add_argument("--state", type=Path, default=Path(".atl/state"))
 
+    cons = sub.add_parser(
+        "console",
+        help="Start the authenticated operator console (loopback :8795 by default)",
+    )
+    cons.add_argument("--host", default="127.0.0.1")
+    cons.add_argument("--port", type=int, default=8795)
+    cons.add_argument(
+        "--data-dir",
+        type=Path,
+        default=Path(os.environ.get("ATL_DATA_DIR", ".atl/edge-data")),
+        help="Shared durable data dir (inbox/outbox/ledger); prefer same ATL_DATA_DIR as Edge",
+    )
+
     pb = sub.add_parser("provision-connector")
     pb.add_argument("--manifest", type=Path, required=True)
     pb.add_argument("--output", type=Path, required=True)
@@ -463,6 +476,11 @@ def main() -> int:
             return 0
         print(json.dumps({"status": "ENTITLEMENT_PRESENT", "path": str(p)}, indent=2))
         return 0
+
+    if args.cmd == "console":
+        from src.web_console import main as console_main
+
+        return console_main(["--host", args.host, "--port", str(args.port), "--data-dir", str(args.data_dir)])
 
     if args.cmd == "provision-connector":
         manifest = json.loads(args.manifest.read_text())

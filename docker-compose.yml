@@ -1,7 +1,8 @@
 # ATL Edge deployment
 # Host one-shot:  bash scripts/deploy_edge.sh
 # Docker Edge:    bash scripts/deploy_edge.sh --docker
-# Sidecar only:   docker compose up sidecar
+# Sidecar only:   docker compose --profile sidecar up sidecar
+# Console:        ATL_CONSOLE_TOKEN=... docker compose --profile console up -d web-console
 # Tests:          docker compose run --rm testbench
 
 services:
@@ -75,6 +76,44 @@ services:
     environment:
       PYTHONPATH: /app/vendor:/app
     command: ["python", "testbench/perf_dossier.py", "--out", "/tmp/perf_report.md"]
+
+  web-console:
+    build: .
+    image: atl-edge:hardened
+    profiles: ["console"]
+    ports:
+      - "127.0.0.1:8795:8795"
+    volumes:
+      - ${ATL_EDGE_DIR:-./.atl/edge}:/secrets:ro
+      - atl-edge-data:/data
+    environment:
+      PYTHONPATH: /app/vendor:/app
+      ATL_DATA_DIR: /data
+      ATL_CONSOLE_TOKEN: ${ATL_CONSOLE_TOKEN:-}
+      # Container-internal listen only; host publish is already 127.0.0.1:8795.
+      ATL_CONSOLE_BIND_PUBLIC: "1"
+      ATL_ENTITLEMENT_PATH: /secrets/entitlement.json
+      ATL_CONTROL_PLANE_PUBLIC_KEY_PATH: /secrets/control-plane-public-key.pem
+    env_file:
+      - path: ${ATL_EDGE_ENV_FILE:-./.atl/edge/edge.env}
+        required: false
+    command: ["python", "-m", "src.web_console", "--host", "0.0.0.0", "--port", "8795", "--data-dir", "/data"]
+    depends_on:
+      - edge-api
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8795/health', timeout=3)",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
 
 volumes:
   atl-edge-data:

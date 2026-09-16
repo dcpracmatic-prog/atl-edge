@@ -1,4 +1,3 @@
-from src.http_limits import BodyLimitError, REQUEST_SOCKET_TIMEOUT, read_bounded_body
 """HTTP surface for the reference Control Plane (src/control_plane.py).
 
 Exposes exactly two customer-facing, unauthenticated-by-design* endpoints:
@@ -22,6 +21,8 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Optional
+
+from src.http_limits import BodyLimitError, REQUEST_SOCKET_TIMEOUT, read_bounded_body
 
 from .control_plane import ControlPlane, LicenseError
 from .dev_tls import server_context

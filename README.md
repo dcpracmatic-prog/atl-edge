@@ -10,6 +10,31 @@
 
 ---
 
+
+## Operator console (three-process view)
+
+```text
+Edge API :8790     — production execute / ATLP seal (network boundary)
+Console  :8795     — authenticated operator UI (loopback; Bearer ATL_CONSOLE_TOKEN)
+Sidecar  :8787     — SmartTokenProd long-lived artifacts (optional)
+```
+
+See **[docs/CONSOLE.md](docs/CONSOLE.md)** for the full audit/deploy flow (phases 0–7)
+and the A1–A14 go/no-go table. Consolidation notes:
+[docs/ATL-EDGE-AUDITORIA-INTEGRACION.md](docs/ATL-EDGE-AUDITORIA-INTEGRACION.md).
+
+**Anti-pattern:** do not put Firebase, Gemini, or a demo `server.ts` on the
+data-plane. License issuance stays in `atlctl` / the control plane — not the console.
+
+Start console (after Edge bootstrap / `edge.env`):
+
+```bash
+export ATL_CONSOLE_TOKEN="$(openssl rand -hex 32)"
+set -a && source .atl/edge/edge.env && set +a
+PYTHONPATH=vendor:. python atlctl.py console --host 127.0.0.1 --port 8795
+# or: ATL_CONSOLE_TOKEN=... docker compose --profile console up -d web-console
+```
+
 ## ¿Qué es?
 
 **ATL Edge** es un **intermediario de datos on-prem** entre:
