@@ -38,7 +38,7 @@ USER atl
 ENV PYTHONPATH=/app/vendor:/app
 ENV ATL_DATA_DIR=/data
 
-EXPOSE 8787 8790
+EXPOSE 8787 8790 8795
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
     CMD python -c "from src.long_lived_protection import is_available; assert is_available()"
 
