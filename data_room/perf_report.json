@@ -1,0 +1,39 @@
+{
+  "generated_at": "2026-09-15T02:23:45Z",
+  "smart_token_prod_version": "0.4.4",
+  "native_friction": true,
+  "rss_kb_before": 40604,
+  "rss_kb_after": 42556,
+  "dossier_runtime_s": 0.101,
+  "serial": {
+    "artifact_bytes": 65536,
+    "protect": {
+      "n": 15,
+      "mean_ms": 1.469,
+      "p50_ms": 1.371,
+      "p95_ms": 1.631,
+      "max_ms": 2.818
+    },
+    "open_legitimate": {
+      "n": 15,
+      "mean_ms": 1.147,
+      "p50_ms": 1.109,
+      "p95_ms": 1.379,
+      "max_ms": 1.512
+    },
+    "open_forced_failure": {
+      "n": 15,
+      "mean_ms": 1.867,
+      "p50_ms": 1.848,
+      "p95_ms": 2.083,
+      "max_ms": 2.093
+    }
+  },
+  "concurrent_failures": {
+    "workers": 8,
+    "tasks": 16,
+    "wall_ms": 19.56,
+    "mean_task_ms": 6.526,
+    "max_task_ms": 12.39
+  }
+}

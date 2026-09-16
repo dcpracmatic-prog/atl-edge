@@ -1,0 +1,36 @@
+# Nightly — extended validation (full matrix + docker)
+name: Nightly
+
+on:
+  schedule:
+    - cron: "0 6 * * *"   # 06:00 UTC daily
+  workflow_dispatch:
+
+env:
+  PYTHONPATH: vendor:.
+  PIP_INDEX_URL: https://pypi.org/simple
+
+jobs:
+  nightly-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install + build + validate
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends g++ gcc make
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          bash scripts/validate_all.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nightly-evidence
+          path: |
+            testbench/last_report.json
+            testbench/perf_report.md
+            testbench/perf_report.json
+          retention-days: 14

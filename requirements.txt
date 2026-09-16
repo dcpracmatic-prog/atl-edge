@@ -1,0 +1,4 @@
+cryptography>=41.0
+# Optional but required for SmartTokenProd long-lived protection (ML-KEM)
+pqcrypto>=0.3
+numpy>=1.24

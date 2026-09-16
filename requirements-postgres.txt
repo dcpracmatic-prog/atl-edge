@@ -1,0 +1,4 @@
+# Optional: only needed for src.control_plane_storage.PostgresBackend
+# (ControlPlane.with_postgres). The default SQLiteBackend needs nothing
+# beyond requirements.txt.
+psycopg[binary]>=3.1

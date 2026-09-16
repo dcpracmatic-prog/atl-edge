@@ -1,0 +1,91 @@
+ATL Edge + SmartTokenProd Hardened v2
+=====================================
+
+Copyright (c) 2024–2026 the ATL Edge authors and contributors.
+Licensed under the Elastic License 2.0 (see the file LICENSE).
+
+This product includes software developed for the ATL Edge data plane,
+MORPH-8 structural gate, SmartTokenProd long-lived artifact protection,
+adversarial / red-team testbenches, and related tooling.
+
+Except where noted below, original source code in this repository is provided
+under the Elastic License 2.0.
+
+
+Third-party dependencies
+------------------------
+
+Runtime and build dependencies used by this project (as declared in
+requirements.txt, pyproject/setup metadata, and native toolchains) include
+the following. Licenses below are those typically published by the upstream
+projects; verify the exact version you install for production compliance.
+
+### Python packages
+
+  cryptography
+    Project: https://github.com/pyca/cryptography
+    License: Apache License 2.0 OR BSD-3-Clause
+    Use: AES-GCM, HKDF, Ed25519, and related primitives (ATLP, licensing).
+
+  pqcrypto
+    Project: https://pypi.org/project/pqcrypto/
+    License: as published by the pqcrypto maintainers (check installed package)
+    Use: ML-KEM-768 key encapsulation for SmartTokenProd.
+
+  numpy
+    Project: https://numpy.org/
+    License: BSD-3-Clause
+    Use: optional numeric support for SmartTokenProd / tooling.
+
+  pytest (development / CI only)
+    Project: https://pytest.org/
+    License: MIT
+    Use: unit tests for SmartTokenProd.
+
+### Vendored / in-tree components
+
+  vendor/smart_token_prod/
+    SmartTokenProd library (source included in this tree).
+    Subject to the Elastic License 2.0 of this distribution unless a nested
+    license file states otherwise.
+
+  vendor/smart_token/
+    Legacy / complementary token utilities vendored for integration tests.
+    Subject to the Elastic License 2.0 of this distribution unless a nested
+    license file states otherwise.
+
+  vendor/agentguard/
+    AgentGuard observation/shadow components vendored for coherence tooling.
+    Subject to the Elastic License 2.0 of this distribution unless a nested
+    license file states otherwise.
+
+### Native code and system toolchain
+
+  C/C++ sources under src/, eo_probe/, vendor/smart_token_prod/cpp/
+    Compiled with a standard GCC/Clang toolchain (GPL-licensed compiler;
+    the compiler license does not apply to the output binaries you distribute
+    from this project’s own sources).
+
+  libfriction.so / libmorph8.so / libswar_fleet.so
+    Built from sources in this repository; not redistributed as precompiled
+    blobs. Build with ./build.sh.
+
+
+Notices required by Elastic License 2.0
+---------------------------------------
+
+- Do not remove or obscure this NOTICE file or the LICENSE file when you
+  redistribute the software or substantial portions of it.
+- If you modify the software, include prominent notices stating that you
+  have modified it.
+- You may not provide this software to third parties as a hosted or managed
+  service that exposes a substantial set of its features or functionality
+  (see LICENSE, Limitations).
+
+
+Disclaimer
+----------
+
+This NOTICE is provided for transparency. It is not a legal opinion. For
+production redistribution, confirm the license of each pinned dependency
+version and of any additional packages your deployment introduces.

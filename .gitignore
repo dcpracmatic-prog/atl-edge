@@ -1,0 +1,83 @@
+# ATL local runtime state and customer-specific provisioning.
+# These files are created after activation/provisioning and must never be committed.
+.atl/
+
+# Secrets / activation material.
+.env
+.env.*
+!.env.example
+**/node-key.hex
+**/api-key*
+**/*api-key*.txt
+**/*api-key*.json
+**/*private*.pem
+**/*private*.key
+**/*signing*.pem
+**/*signing*.key
+**/*entitlement*.json
+
+# Customer-specific generated Connector / SDK bundles.
+**/generated-connector/
+**/generated-sdk/
+**/connector-bundle/
+
+# File workflow runtime state: raw customer input, sealed packages in transit,
+# and their archives. This is customer data at rest on the Edge — never
+# committed, regardless of directory name chosen by a deployment.
+**/inbox/
+**/outbox/
+**/outbox-archive/
+**/inbox-archive/
+**/outbox-dead-letter/
+**/_retry_state.json
+
+# Control-plane runtime state: the Ed25519 signing private key, the SQLite
+# license/activation ledger (org names, API-key fingerprints, node
+# bindings), and its WAL/SHM sidecars.
+**/control-plane-state/
+**/licenses.json
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+
+# Dev-only TLS material (see src/dev_tls.py) — self-signed, short-lived,
+# regenerated per run by the selftests. Production certs are provisioned
+# out of band by real infra, not committed either.
+**/certs/
+*.cert.pem
+*.key.pem
+
+# Local caches/build artifacts.
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.so
+*.o
+*.a
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local logs / audit state.
+*.log
+*.jsonl
+
+# OS/editor files.
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Native build artifacts (built by ./build.sh)
+build/
+*.so
+vendor/smart_token_prod/libfriction.so
+vendor/smart_token_prod/cpp/libfriction.so
+vendor/smart_token_prod/cpp/friction_demo
+eo_probe/core/libswar_fleet.so
+__pycache__/
+*.pyc
+skills/field_engine/field_engine_v2
