@@ -290,3 +290,32 @@ jobs:
           echo "health:"; cat /tmp/health.json; echo
           curl -sf http://127.0.0.1:8787/v1/status | tee /tmp/status.json
           python -c 'import json; s=json.load(open("/tmp/health.json")); assert s.get("ok") is True'
+          --- /tmp/ci-main.yml	2026-09-16 11:41:33.933157010 -0600
+  # ------------------------------------------------------------------
+  # 6. Operator console secure-behavior selftest
+  # ------------------------------------------------------------------
+  console-selftest:
+    name: Console selftest
+    runs-on: ubuntu-latest
+    needs: [validate]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deps + build natives
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends g++ gcc make
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          bash build.sh
+
+      - name: Operator console secure-behavior selftest
+        env:
+          PYTHONPATH: vendor:.
+        run: python examples/web_console_selftest.py
+
