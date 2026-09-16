@@ -7,7 +7,10 @@ on operations, arguments, resources and effects before an executor is called.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
+import os
+import time
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Mapping, Optional
 
@@ -32,6 +35,9 @@ class ProposalPolicy:
     )
     max_argument_bytes: int = 8192
     max_limit: int = 100
+    max_fields: int = 64
+    max_effects: int = 32
+    max_argument_depth: int = 16
 
     def to_morph_policy(self) -> str:
         lines = [f"allow_tool={x}" for x in self.allow_tools]
@@ -59,6 +65,9 @@ class ProposalPolicy:
             "deny_argument_keys": sorted(self.deny_argument_keys),
             "max_argument_bytes": self.max_argument_bytes,
             "max_limit": self.max_limit,
+            "max_fields": self.max_fields,
+            "max_effects": self.max_effects,
+            "max_argument_depth": self.max_argument_depth,
         }
 
     @property
@@ -115,8 +124,8 @@ def validate_proposal_schema(proposal: Mapping[str, Any]) -> Dict[str, Any]:
         if not isinstance(proposal["limit"], int) or isinstance(proposal["limit"], bool) or proposal["limit"] < 1:
             raise ProposalSchemaError("limit must be a positive integer")
     effects = proposal.get("effects", [])
-    if not isinstance(effects, list) or any(not isinstance(x, str) or not x.strip() for x in effects):
-        raise ProposalSchemaError("effects must be a list of strings")
+    if not isinstance(effects, list) or len(effects) > 32 or any(not isinstance(x, str) or not x.strip() for x in effects):
+        raise ProposalSchemaError("effects must be a list of <=32 strings")
     steps = proposal.get("steps", [])
     if not isinstance(steps, list) or len(steps) > 128:
         raise ProposalSchemaError("steps must be a list with <=128 items")
@@ -143,10 +152,13 @@ def validate_proposal_schema(proposal: Mapping[str, Any]) -> Dict[str, Any]:
         if "resource" in st:
             _str(st["resource"], "step.resource")
         if "fields" in st:
-            if not isinstance(st["fields"], list) or any(not isinstance(x, str) or not x.strip() for x in st["fields"]):
-                raise ProposalSchemaError("step.fields must be a list of strings")
+            if not isinstance(st["fields"], list) or len(st["fields"]) > 64 or any(not isinstance(x, str) or not x.strip() for x in st["fields"]):
+                raise ProposalSchemaError("step.fields must be a list of <=64 strings")
         if "limit" in st and (not isinstance(st["limit"], int) or isinstance(st["limit"], bool) or st["limit"] < 1):
             raise ProposalSchemaError("step.limit must be a positive integer")
+        step_effects = st.get("effects", [])
+        if not isinstance(step_effects, list) or len(step_effects) > 32 or any(not isinstance(x, str) or not x.strip() for x in step_effects):
+            raise ProposalSchemaError("step.effects must be a list of <=32 strings")
         deps = st.get("depends_on", [])
         if not isinstance(deps, list) or len(deps) > 32 or any(not isinstance(x, str) or not x for x in deps):
             raise ProposalSchemaError("step.depends_on must be a list of <=32 strings")
@@ -168,6 +180,25 @@ def _canonical_hash(obj: Mapping[str, Any]) -> str:
 
 
 @dataclass(frozen=True)
+class IssueAuthorization:
+    """Short-lived capability authorizing exactly one ATLP issuance.
+
+    The token is MACed with a process-local secret shared only by the
+    canonical ProposalGate and LocalDataPlane. It binds the request identity
+    and proposal/policy hashes, preventing raw DataPlane issuance from
+    bypassing the gate contract.
+    """
+    request_id: str
+    policy_id: str
+    policy_hash: str
+    proposal_hash: str
+    ttl_seconds: int
+    fields_hash: str
+    expires_at: float
+    signature: str
+
+
+@dataclass(frozen=True)
 class GateResult:
     allowed: bool
     decision: str
@@ -180,9 +211,46 @@ class GateResult:
 
 
 class ProposalGate:
-    def __init__(self, policy: ProposalPolicy, morph: Optional[MorphGate] = None):
+    def __init__(self, policy: ProposalPolicy, morph: Optional[MorphGate] = None, *, issue_auth_key: Optional[bytes] = None):
         self.policy = policy
         self.morph = morph or MorphGate()
+        self._issue_auth_key = issue_auth_key or os.urandom(32)
+        if len(self._issue_auth_key) < 32:
+            raise ValueError("issue_auth_key must be at least 32 bytes")
+
+    @property
+    def issue_auth_key(self) -> bytes:
+        """Opaque process-local key used to bind the Data Plane to this gate."""
+        return self._issue_auth_key
+
+    def authorize_issue(
+        self,
+        result: "GateResult",
+        *,
+        request_id: str,
+        ttl_seconds: int,
+        fields: Optional[Sequence[str]] = None,
+        now: Optional[float] = None,
+    ) -> IssueAuthorization:
+        if not result.allowed:
+            raise PermissionError("cannot authorize rejected proposal")
+        if not isinstance(request_id, str) or not request_id.strip():
+            raise ValueError("request_id required")
+        if not isinstance(ttl_seconds, int) or isinstance(ttl_seconds, bool) or ttl_seconds <= 0:
+            raise ValueError("ttl_seconds must be > 0")
+        field_values = tuple(fields or result.proposal.get("fields") or ())
+        fields_blob = json.dumps(field_values, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+        fields_hash = hashlib.sha256(fields_blob).hexdigest()
+        expires_at = (time.time() if now is None else now) + ttl_seconds
+        payload = {
+            "request_id": request_id, "policy_id": result.policy_id,
+            "policy_hash": result.policy_hash, "proposal_hash": result.proposal_hash,
+            "ttl_seconds": ttl_seconds, "fields_hash": fields_hash,
+            "expires_at": expires_at,
+        }
+        blob = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        signature = hmac.new(self._issue_auth_key, blob, hashlib.sha256).hexdigest()
+        return IssueAuthorization(signature=signature, **payload)
 
     def _semantic_policy_check(self, proposal: Dict[str, Any]) -> Optional[str]:
         p = self.policy
@@ -206,22 +274,39 @@ class ProposalGate:
             bad = set(proposal.get("effects", [])) - set(p.allowed_effects)
             if bad:
                 return f"effects_not_allowed:{sorted(bad)}"
-        arg_blob = json.dumps(proposal["arguments"], ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-        if len(arg_blob) > p.max_argument_bytes:
-            return "arguments_too_large"
-        bad_keys = set()
-        def walk(x: Any) -> None:
-            if isinstance(x, Mapping):
-                for k, v in x.items():
-                    if str(k).lower() in p.deny_argument_keys:
-                        bad_keys.add(str(k))
-                    walk(v)
-            elif isinstance(x, list):
-                for v in x:
-                    walk(v)
-        walk(proposal["arguments"])
-        if bad_keys:
-            return f"dangerous_argument_keys:{sorted(bad_keys)}"
+        def inspect_arguments(args: Mapping[str, Any], label: str) -> Optional[str]:
+            arg_blob = json.dumps(args, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+            if len(arg_blob) > p.max_argument_bytes:
+                return f"{label}_arguments_too_large"
+            bad_keys = set()
+            too_deep = False
+            def walk(x: Any, depth: int = 0) -> None:
+                nonlocal too_deep
+                if depth > p.max_argument_depth:
+                    too_deep = True
+                    return
+                if isinstance(x, Mapping):
+                    for k, v in x.items():
+                        if str(k).lower() in p.deny_argument_keys:
+                            bad_keys.add(str(k))
+                        walk(v, depth + 1)
+                elif isinstance(x, list):
+                    for v in x:
+                        walk(v, depth + 1)
+            walk(args)
+            if too_deep:
+                return f"{label}_argument_depth_exceeded"
+            if bad_keys:
+                return f"dangerous_{label}_argument_keys:{sorted(bad_keys)}"
+            return None
+
+        argument_error = inspect_arguments(proposal["arguments"], "proposal")
+        if argument_error:
+            return argument_error
+        if len(proposal.get("fields", [])) > p.max_fields:
+            return "fields_too_many"
+        if len(proposal.get("effects", [])) > p.max_effects:
+            return "effects_too_many"
         if "limit" in proposal and proposal["limit"] > p.max_limit:
             return "limit_exceeded"
         for st in proposal.get("steps", []):
@@ -233,9 +318,13 @@ class ProposalGate:
                 return "step_effect_not_allowed"
             if "limit" in st and st["limit"] > p.max_limit:
                 return "step_limit_exceeded"
-            for key in st.get("arguments", {}):
-                if str(key).lower() in p.deny_argument_keys:
-                    return f"dangerous_step_argument_key:{key}"
+            if len(st.get("fields", [])) > p.max_fields:
+                return "step_fields_too_many"
+            if len(st.get("effects", [])) > p.max_effects:
+                return "step_effects_too_many"
+            step_argument_error = inspect_arguments(st.get("arguments", {}), "step")
+            if step_argument_error:
+                return step_argument_error
         return None
 
     def check(self, proposal: Mapping[str, Any]) -> GateResult:

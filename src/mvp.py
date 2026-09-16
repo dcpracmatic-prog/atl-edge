@@ -110,7 +110,8 @@ class ATLDataPlaneMVP:
             # optional classification/access layer is enabled: it always
             # comes from the caller-supplied `fields` or the proposal itself,
             # so the ATLP result-manifest binding below is always available.
-            requested_fields = tuple(fields or gate.proposal.get("fields") or ())
+            requested_fields = tuple(fields if fields is not None else gate.proposal.get("fields") or ())
+            issue_fields = tuple(requested_fields) if requested_fields else None
 
             # Optional local data classification/access layer. `resource` is the
             # canonical asset identifier in the proposal schema. Classification
@@ -138,12 +139,15 @@ class ATLDataPlaneMVP:
                 manifest_hash = manifest.manifest_hash
 
             exec_result = executor(gate.proposal)
+            authorization = self.gate.authorize_issue(
+                gate, request_id=rid, ttl_seconds=ttl_seconds, fields=issue_fields,
+            )
 
             issue = self.data_plane.issue_for_agent(
                 records,
                 policy_id=gate.policy_id,
                 ttl_seconds=ttl_seconds,
-                fields=fields,
+                fields=issue_fields,
                 requester=requester,
                 purpose=purpose,
                 request_id=rid,
@@ -151,6 +155,7 @@ class ATLDataPlaneMVP:
                 proposal_hash=gate.proposal_hash,
                 result_manifest_hash=manifest_hash,
                 license_id=self.entitlement.license_id if self.entitlement else "",
+                authorization=authorization,
             )
             if decision is not None:
                 issue.metrics.update({

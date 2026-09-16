@@ -73,7 +73,8 @@ def main() -> int:
         node_key_bytes = node_key(master, NODE_ID)
         crypto = PackageCrypto.from_master(master, NODE_ID, key_id="node-v1")
         audit = OnPremAuditLog(root / "audit.jsonl")
-        dp = LocalDataPlane(crypto, audit)
+        gate = ProposalGate(default_proposal_policy())
+        dp = LocalDataPlane(crypto, audit, issue_auth_key=gate.issue_auth_key)
         catalog = DataCatalog()
         catalog.register(DataAsset(
             asset_id="crm", name="CRM", sensitivity=Sensitivity.INTERNAL,
@@ -84,8 +85,6 @@ def main() -> int:
         # itself was registered as INTERNAL (see src/data_catalog.py) — the
         # classifier never downgrades, so the node policy has to allow for it.
         access = NodeAccessPolicy(node_id=NODE_ID, allowed_assets=("crm",), max_sensitivity=Sensitivity.CONFIDENTIAL)
-        gate = ProposalGate(default_proposal_policy())
-
         mvp = ATLDataPlaneMVP.production(gate, dp, entitlement, catalog=catalog, node_access=access)
         print("[edge] ATLDataPlaneMVP.production() constructed with enforced license: OK")
 

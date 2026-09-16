@@ -15,6 +15,7 @@ Hardening vs revisión adversarial:
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import math
 import os
@@ -24,6 +25,11 @@ import uuid
 from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+
+try:
+    from .proposal_gate import IssueAuthorization, ProposalGate, default_proposal_policy
+except ImportError:  # direct self-test execution
+    from src.proposal_gate import IssueAuthorization, ProposalGate, default_proposal_policy
 
 MAGIC = b"ATLP"
 VERSION = 1
@@ -413,9 +419,40 @@ class LocalIssueResult:
 
 
 class LocalDataPlane:
-    def __init__(self, crypto: PackageCrypto, audit: OnPremAuditLog):
+    def __init__(self, crypto: PackageCrypto, audit: OnPremAuditLog, *, issue_auth_key: bytes):
         self.crypto = crypto
         self.audit = audit
+        if len(issue_auth_key) < 32:
+            raise ValueError("issue_auth_key must be at least 32 bytes")
+        self._issue_auth_key = bytes(issue_auth_key)
+
+    def _verify_issue_authorization(
+        self, auth: IssueAuthorization, *, request_id: Optional[str], policy_id: str,
+        ttl_seconds: int, fields: Optional[Sequence[str]], policy_hash: str, proposal_hash: str,
+        now: Optional[float] = None,
+    ) -> None:
+        if not isinstance(auth, IssueAuthorization):
+            raise PermissionError(INERT)
+        rid = request_id or ""
+        field_values = tuple(fields or ())
+        fields_hash = hashlib.sha256(
+            json.dumps(field_values, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+        ).hexdigest()
+        payload = {
+            "request_id": rid, "policy_id": policy_id, "policy_hash": policy_hash,
+            "proposal_hash": proposal_hash, "ttl_seconds": ttl_seconds,
+            "fields_hash": fields_hash, "expires_at": auth.expires_at,
+        }
+        blob = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        expected = hmac.new(self._issue_auth_key, blob, hashlib.sha256).hexdigest()
+        if (not hmac.compare_digest(expected, auth.signature) or auth.request_id != rid
+                or auth.policy_id != policy_id or auth.policy_hash != policy_hash
+                or auth.proposal_hash != proposal_hash or auth.ttl_seconds != ttl_seconds
+                or auth.fields_hash != fields_hash):
+            raise PermissionError(INERT)
+        t = time.time() if now is None else now
+        if t >= auth.expires_at or ttl_seconds <= 0:
+            raise PermissionError(INERT)
 
     def issue_for_agent(
         self,
@@ -431,7 +468,12 @@ class LocalDataPlane:
         proposal_hash: str = "",
         result_manifest_hash: str = "",
         license_id: str = "",
+        authorization: Optional[IssueAuthorization] = None,
     ) -> LocalIssueResult:
+        self._verify_issue_authorization(
+            authorization, request_id=request_id, policy_id=policy_id, ttl_seconds=ttl_seconds,
+            fields=fields, policy_hash=policy_hash, proposal_hash=proposal_hash,
+        )
         raw = json.dumps(list(records), ensure_ascii=False, separators=(",", ":"))
         digested = predigest_records(records, fields=fields)
         plain = json.dumps(digested, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
@@ -545,13 +587,24 @@ def run_selftest(audit_path: Path) -> bool:
         master, node, key_id="master-v1", on_reject=lambda d: rejects.append(d)
     )
     audit = OnPremAuditLog(audit_path)
-    local = LocalDataPlane(crypto, audit)
+    gate = ProposalGate(default_proposal_policy())
+    local = LocalDataPlane(crypto, audit, issue_auth_key=gate.issue_auth_key)
+
+    def issue(records, *, policy_id, ttl_seconds=60, fields=None, request_id=None, requester="local-agent", purpose="premium-agent-task"):
+        proposal = {"schema_version": 1, "tool": "lookup", "operation": "read", "fields": list(fields or [])}
+        checked = gate.check(proposal)
+        assert checked.allowed
+        rid = request_id or str(uuid.uuid4())
+        auth = gate.authorize_issue(checked, request_id=rid, ttl_seconds=ttl_seconds, fields=fields)
+        return local.issue_for_agent(records, policy_id=checked.policy_id, ttl_seconds=ttl_seconds, fields=fields,
+                                     request_id=rid, policy_hash=checked.policy_hash, proposal_hash=checked.proposal_hash,
+                                     requester=requester, purpose=purpose, authorization=auth)
 
     records = [
         {"customer_id": i, "region": "MX", "status": "active", "note": f"long free text {i} " * 20}
         for i in range(50)
     ]
-    issued = local.issue_for_agent(
+    issued = issue(
         records,
         policy_id="crm.read.summary",
         ttl_seconds=60,
@@ -576,7 +629,7 @@ def run_selftest(audit_path: Path) -> bool:
         print("replay INERT: OK  detail_audit=", rejects[-1] if rejects else None)
 
     # forged package must NOT poison replay cache before AEAD authentication.
-    issued_poison = local.issue_for_agent(
+    issued_poison = issue(
         records[:1], policy_id="poison-test", ttl_seconds=60, fields=["customer_id"], request_id="fixed-replay-id"
     )
     forged = bytearray(issued_poison.package)
@@ -593,7 +646,7 @@ def run_selftest(audit_path: Path) -> bool:
     print("auth failure does not poison replay: OK")
 
     # fresh package for remaining tests
-    issued2 = local.issue_for_agent(
+    issued2 = issue(
         records[:5], policy_id="crm.read.summary", ttl_seconds=60, fields=["customer_id"]
     )
 
@@ -608,7 +661,7 @@ def run_selftest(audit_path: Path) -> bool:
 
     # wrong node key (different HKDF)
     other = PackageCrypto.from_master(master, "other-node", key_id="master-v1")
-    issued3 = local.issue_for_agent(
+    issued3 = issue(
         records[:3], policy_id="p", ttl_seconds=60, fields=["customer_id"]
     )
     try:
@@ -659,14 +712,15 @@ def run_selftest(audit_path: Path) -> bool:
 
     conn = CloudDecryptConnector.from_env(node, dev=True)
     # need new package for this connector's replay cache
-    issued4 = LocalDataPlane(
-        PackageCrypto.from_master(master, node, key_id="dev-fallback"),
-        audit,
-    ).issue_for_agent(records[:2], policy_id="p", ttl_seconds=30, fields=["customer_id"])
-    # key_id mismatch: sealed with master-v1 path above vs dev-fallback — use matching
+    # Use a fresh connector key/cache for the dev-only connector path.
     crypto_dev = PackageCrypto.from_master(master, node, key_id="dev-fallback")
-    local_dev = LocalDataPlane(crypto_dev, audit)
-    issued4 = local_dev.issue_for_agent(records[:2], policy_id="p", ttl_seconds=30, fields=["customer_id"])
+    gate_dev = ProposalGate(default_proposal_policy())
+    local_dev = LocalDataPlane(crypto_dev, audit, issue_auth_key=gate_dev.issue_auth_key)
+    checked_dev = gate_dev.check({"schema_version": 1, "tool": "lookup", "operation": "read", "fields": ["customer_id"]})
+    auth_dev = gate_dev.authorize_issue(checked_dev, request_id="dev-req", ttl_seconds=30, fields=["customer_id"])
+    issued4 = local_dev.issue_for_agent(records[:2], policy_id=checked_dev.policy_id, ttl_seconds=30, fields=["customer_id"],
+                                        request_id="dev-req", policy_hash=checked_dev.policy_hash,
+                                        proposal_hash=checked_dev.proposal_hash, authorization=auth_dev)
     conn = CloudDecryptConnector(crypto_dev)
     out = conn.open_package(issued4.package)
     assert out["n_out"] == 2

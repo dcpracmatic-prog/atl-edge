@@ -21,7 +21,7 @@ def main() -> int:
     crypto = PackageCrypto.from_master(master, "mvp-node", key_id="mvp-v1")
     with tempfile.TemporaryDirectory() as td:
         audit = OnPremAuditLog(Path(td) / "audit.jsonl")
-        dp = LocalDataPlane(crypto, audit)
+        dp = LocalDataPlane(crypto, audit, issue_auth_key=gate.issue_auth_key)
         catalog = DataCatalog()
         catalog.register(DataAsset(
             asset_id="crm", name="CRM", sensitivity=Sensitivity.INTERNAL,

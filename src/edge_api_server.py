@@ -119,9 +119,10 @@ class EdgeRuntime:
         crypto = PackageCrypto.from_master(master, node_id, key_id="edge-v1")
         audit_path.parent.mkdir(parents=True, exist_ok=True)
         audit = OnPremAuditLog(audit_path)
-        # Private — not attached to the HTTP handler.
-        self._data_plane = LocalDataPlane(crypto, audit)
         gate = ProposalGate(default_proposal_policy())
+        # The Data Plane receives only the gate's process-local issuance key;
+        # raw issue_for_agent calls without a gate authorization are inert.
+        self._data_plane = LocalDataPlane(crypto, audit, issue_auth_key=gate.issue_auth_key)
         self.mvp = ATLDataPlaneMVP.production(
             gate,
             self._data_plane,

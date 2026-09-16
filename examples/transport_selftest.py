@@ -15,6 +15,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.data_plane import LocalDataPlane, OnPremAuditLog, PackageCrypto, node_key
+from src.proposal_gate import ProposalGate, default_proposal_policy
 from src.file_workflow import Outbox
 from src.transport import derive_transport_key, push_ready, sign_request
 from connector.cloud_runtime import ConnectorIngestServer
@@ -32,10 +33,18 @@ def main() -> int:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             crypto = PackageCrypto.from_master(master, NODE_ID, key_id="node-v1")
-            dp = LocalDataPlane(crypto, OnPremAuditLog(root / "audit.jsonl"))
+            gate = ProposalGate(default_proposal_policy())
+            dp = LocalDataPlane(crypto, OnPremAuditLog(root / "audit.jsonl"), issue_auth_key=gate.issue_auth_key)
             outbox = Outbox(root / "outbox")
+            def issue(records, *, policy_id, ttl_seconds, fields, request_id):
+                checked = gate.check({"schema_version": 1, "tool": "lookup", "operation": "read", "fields": list(fields)})
+                assert checked.allowed
+                auth = gate.authorize_issue(checked, request_id=request_id, ttl_seconds=ttl_seconds, fields=fields)
+                return dp.issue_for_agent(records, policy_id=checked.policy_id, ttl_seconds=ttl_seconds, fields=fields,
+                                          request_id=request_id, policy_hash=checked.policy_hash,
+                                          proposal_hash=checked.proposal_hash, authorization=auth)
 
-            issued = dp.issue_for_agent(
+            issued = issue(
                 [{"customer_id": i, "status": "active"} for i in range(5)],
                 policy_id="crm.read", ttl_seconds=30, fields=["customer_id", "status"],
                 request_id="req-happy",
@@ -67,7 +76,7 @@ def main() -> int:
             print("forged signature rejected (401), never reached agent handler: OK")
 
             # Replaying an identical, validly-signed request must be rejected the second time.
-            issued2 = dp.issue_for_agent([{"customer_id": 1}], policy_id="crm.read", ttl_seconds=30,
+            issued2 = issue([{"customer_id": 1}], policy_id="crm.read", ttl_seconds=30,
                                           fields=["customer_id"], request_id="req-replay")
             entry2 = outbox.deposit(NODE_ID, issued2.header.request_id, issued2.package,
                                      policy_id=issued2.header.policy_id, expiry=issued2.header.expiry)

@@ -1,4 +1,3 @@
-from src.http_limits import BodyLimitError, REQUEST_SOCKET_TIMEOUT, read_bounded_body
 """HTTP surface for the reference Control Plane (src/control_plane.py).
 
 Exposes exactly two customer-facing, unauthenticated-by-design* endpoints:
@@ -15,6 +14,8 @@ this reference server has no admin-auth layer to gate it safely. Wire
 tool/billing webhook a real deployment has.
 """
 from __future__ import annotations
+
+from src.http_limits import BodyLimitError, REQUEST_SOCKET_TIMEOUT, read_bounded_body
 
 import json
 import logging

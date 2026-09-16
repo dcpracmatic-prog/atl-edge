@@ -12,6 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.data_plane import LocalDataPlane, OnPremAuditLog, PackageCrypto, node_key
+from src.proposal_gate import ProposalGate, default_proposal_policy
 from src.file_workflow import Outbox
 from src.transport import RetryScheduler
 
@@ -24,10 +25,18 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)
         crypto = PackageCrypto.from_master(master, NODE_ID, key_id="node-v1")
-        dp = LocalDataPlane(crypto, OnPremAuditLog(root / "audit.jsonl"))
+        gate = ProposalGate(default_proposal_policy())
+        dp = LocalDataPlane(crypto, OnPremAuditLog(root / "audit.jsonl"), issue_auth_key=gate.issue_auth_key)
         outbox = Outbox(root / "outbox")
+        def issue(records, *, policy_id, ttl_seconds, fields, request_id):
+            checked = gate.check({"schema_version": 1, "tool": "lookup", "operation": "read", "fields": list(fields)})
+            assert checked.allowed
+            auth = gate.authorize_issue(checked, request_id=request_id, ttl_seconds=ttl_seconds, fields=fields)
+            return dp.issue_for_agent(records, policy_id=checked.policy_id, ttl_seconds=ttl_seconds, fields=fields,
+                                      request_id=request_id, policy_hash=checked.policy_hash,
+                                      proposal_hash=checked.proposal_hash, authorization=auth)
 
-        issued = dp.issue_for_agent([{"customer_id": 1}], policy_id="crm.read", ttl_seconds=600,
+        issued = issue([{"customer_id": 1}], policy_id="crm.read", ttl_seconds=600,
                                      fields=["customer_id"], request_id="retry-req-1")
         outbox.deposit(NODE_ID, issued.header.request_id, issued.package,
                         policy_id=issued.header.policy_id, expiry=issued.header.expiry)

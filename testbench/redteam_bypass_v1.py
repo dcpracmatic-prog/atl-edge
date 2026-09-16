@@ -141,7 +141,6 @@ def build_stack(
     audit_path = ROOT / ".atl" / "redteam_audit.jsonl"
     audit_path.parent.mkdir(parents=True, exist_ok=True)
     audit = OnPremAuditLog(audit_path)
-    dp = LocalDataPlane(crypto, audit)
     catalog = DataCatalog()
     catalog.register(
         DataAsset(
@@ -161,6 +160,7 @@ def build_stack(
         max_sensitivity=max_sensitivity,
     )
     gate = ProposalGate(default_proposal_policy())
+    dp = LocalDataPlane(crypto, OnPremAuditLog(audit_path), issue_auth_key=gate.issue_auth_key)
     ent = entitlement if entitlement is not None else _make_entitlement()
     mvp = ATLDataPlaneMVP(
         gate,
@@ -289,9 +289,6 @@ def attack_morph_bypass_direct_executor() -> Tuple[bool, bool, bool, Optional[Ba
             result_manifest_hash="",
             license_id="",
         )
-        # Direct data-plane issue is possible if caller has the object —
-        # this is an acknowledged trust boundary: process integrity.
-        # Red-team records it; production must not hand DataPlane to untrusted code.
         return False, issue is not None, issue is not None, None, "direct-dataplane-issue"
     except Exception as e:
         return False, False, False, e, "direct-dataplane-blocked"
