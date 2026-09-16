@@ -7,6 +7,10 @@
 #   bash scripts/deploy_edge.sh --bootstrap-only # only generate .atl/edge/*
 #   bash scripts/deploy_edge.sh --status
 #
+# Full client stack (Edge + Operator console URL):
+#   bash scripts/start_stack.sh                  # → http://127.0.0.1:8795/
+#   bash scripts/start_stack.sh --docker
+#
 # Env overrides:
 #   ATL_EDGE_DIR, ATL_CP_STATE, ATL_ORG, ATL_NODE_ID, ATL_AGENT_ID, ATL_HOST, ATL_PORT
 set -euo pipefail
@@ -33,7 +37,7 @@ for arg in "$@"; do
     --bootstrap-only) BOOTSTRAP_ONLY=1 ;;
     --status) STATUS_ONLY=1 ;;
     --help|-h)
-      sed -n '2,14p' "$0"
+      sed -n '2,18p' "$0"
       exit 0
       ;;
   esac

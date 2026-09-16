@@ -27,7 +27,18 @@ and the A1–A14 go/no-go table. Consolidation notes:
 **Anti-pattern:** do not put Firebase, Gemini, or a demo `server.ts` on the
 data-plane. License issuance stays in `atlctl` / the control plane — not the console.
 
-Start console (after Edge bootstrap / `edge.env`):
+### One-command start (cliente)
+
+```bash
+bash scripts/start_stack.sh
+# Operator console: http://127.0.0.1:8795/
+# Edge API (not the app): http://127.0.0.1:8790/health
+
+bash scripts/start_stack.sh --docker   # compose
+bash scripts/start_stack.sh --stop     # host PIDs
+```
+
+Manual console only (after Edge bootstrap / `edge.env`):
 
 ```bash
 export ATL_CONSOLE_TOKEN="$(openssl rand -hex 32)"

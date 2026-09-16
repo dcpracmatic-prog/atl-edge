@@ -4,7 +4,7 @@
 Licensing tokens are produced in two steps:
 
 1. **issue-license** (admin / control plane) — creates a license and prints the
-   opaque API key **once**. Only a fingerprint is stored.
+   API key **fingerprint**; raw key goes only to a mode-0600 once-file when requested.
 2. **activate-local** or **request-license** — exchanges the API key for a
    signed entitlement bound to node_id + instance_id + agent_id.
 
@@ -33,6 +33,19 @@ from src.licensing import (
 from src.sdk_provisioner import provision_bundle
 
 
+
+def _write_api_key_once(path: Path, api_key: str) -> Path:
+    """Write one-shot API key to a mode-0600 local file; never print the raw key."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    # codeql[py/clear-text-storage-sensitive-data] One-shot local bootstrap artifact (mode 0600); operator retrieves key from this file only.
+    path.write_text(api_key + "\n")
+    try:
+        os.chmod(path, 0o600)
+    except OSError:
+        pass
+    return path
+
+
 def _cmd_issue_license(args: argparse.Namespace) -> int:
     from src.control_plane import ControlPlane
 
@@ -45,27 +58,44 @@ def _cmd_issue_license(args: argparse.Namespace) -> int:
         max_nodes=args.max_nodes,
         max_agents=args.max_agents,
     )
+    api_key = issued["api_key"]
+    fingerprint = activation_fingerprint(api_key)
     out = {
         "status": "LICENSE_ISSUED",
         "license_id": issued["license_id"],
-        "api_key": issued["api_key"],
+        "api_key_fingerprint": fingerprint,
         "organization_id": args.org,
         "plan": args.plan,
         "max_nodes": args.max_nodes,
         "max_agents": args.max_agents,
         "duration_days": args.days,
         "control_plane_state": str(state.resolve()),
-        "note": "Store api_key securely; it is shown only once and cannot be recovered from the control plane.",
+        "note": "Raw api_key is never printed; use --print-api-key to write api_key.once.txt (0600).",
     }
+    key_path = None
+    if getattr(args, "print_api_key", False):
+        key_path = _write_api_key_once(state / "api_key.once.txt", api_key)
+        out["api_key_file"] = str(key_path.resolve())
     if args.json_out:
         args.json_out.parent.mkdir(parents=True, exist_ok=True)
-        # Never write api_key to disk unless explicitly requested
+        disk = dict(out)
         if args.save_api_key:
-            args.json_out.write_text(json.dumps(out, indent=2) + "\n")
+            disk["api_key"] = api_key
+            # codeql[py/clear-text-storage-sensitive-data] Intentional one-shot license receipt on disk (mode 0600); stdout stays redacted.
+            args.json_out.write_text(json.dumps(disk, indent=2) + "\n")
+            try:
+                os.chmod(args.json_out, 0o600)
+            except OSError:
+                pass
+            if key_path is None:
+                # Also materialize once-file when saving key to json-out
+                key_path = _write_api_key_once(state / "api_key.once.txt", api_key)
+                out["api_key_file"] = str(key_path.resolve())
+                disk["api_key_file"] = out["api_key_file"]
+                args.json_out.write_text(json.dumps(disk, indent=2) + "\n")
         else:
-            safe = dict(out)
-            safe["api_key"] = "<redacted — re-run without --json-out or with --save-api-key>"
-            args.json_out.write_text(json.dumps(safe, indent=2) + "\n")
+            args.json_out.write_text(json.dumps(out, indent=2) + "\n")
+    # stdout: fingerprint (+ optional file path); never raw api_key
     print(json.dumps(out, indent=2))
     return 0
 
@@ -166,9 +196,11 @@ def _cmd_bootstrap_edge(args: argparse.Namespace) -> int:
         max_nodes=args.max_nodes,
         max_agents=args.max_agents,
     )
+    api_key = issued["api_key"]
+    fingerprint = activation_fingerprint(api_key)
     try:
         signed = cp.activate(
-            issued["api_key"],
+            api_key,
             node_id=args.node_id,
             instance_id=args.instance_id,
             agent_id=args.agent_id,
@@ -185,12 +217,11 @@ def _cmd_bootstrap_edge(args: argparse.Namespace) -> int:
     payload = {"payload": signed.payload, "signature": signed.signature}
     ent_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
     pub_path.write_text(cp.public_key_pem().decode("ascii"))
-    if args.save_api_key:
-        key_path.write_text(issued["api_key"] + "\n")
-        try:
-            os.chmod(key_path, 0o600)
-        except OSError:
-            pass
+
+    api_key_file = None
+    if args.save_api_key or args.print_api_key:
+        _write_api_key_once(key_path, api_key)
+        api_key_file = str(key_path.resolve())
 
     ent = verify_entitlement(
         SignedEntitlement(payload=signed.payload, signature=signed.signature),
@@ -217,7 +248,7 @@ def _cmd_bootstrap_edge(args: argparse.Namespace) -> int:
             {
                 "status": "EDGE_BOOTSTRAP_READY",
                 "license_id": issued["license_id"],
-                "api_key": issued["api_key"] if args.print_api_key else "<hidden; pass --print-api-key or --save-api-key>",
+                "api_key_fingerprint": fingerprint,
                 "node_id": args.node_id,
                 "agent_id": args.agent_id,
                 "expires_at": ent.expires_at,
@@ -225,10 +256,11 @@ def _cmd_bootstrap_edge(args: argparse.Namespace) -> int:
                     "entitlement": str(ent_path.resolve()),
                     "public_key": str(pub_path.resolve()),
                     "edge_env": str(env_path.resolve()),
-                    "api_key_file": str(key_path.resolve()) if args.save_api_key else None,
+                    "api_key_file": api_key_file,
                     "control_plane_state": str(state.resolve()),
                 },
                 "start_edge": f"set -a && source {env_path.resolve()} && set +a && PYTHONPATH=. python -m src.edge_api_server --host 127.0.0.1 --port 8790",
+                "note": "Raw api_key never printed; retrieve from api_key_file when present (mode 0600).",
             },
             indent=2,
         )
@@ -291,7 +323,8 @@ def main() -> int:
     iss.add_argument("--max-nodes", type=int, default=1)
     iss.add_argument("--max-agents", type=int, default=5)
     iss.add_argument("--json-out", type=Path, default=None, help="optional receipt path (api_key redacted unless --save-api-key)")
-    iss.add_argument("--save-api-key", action="store_true", help="include api_key in --json-out (sensitive)")
+    iss.add_argument("--save-api-key", action="store_true", help="include api_key in --json-out file on disk (stdout still redacted)")
+    iss.add_argument("--print-api-key", action="store_true", help="write <state>/api_key.once.txt (0600); stdout shows path + fingerprint only")
 
     al = sub.add_parser(
         "activate-local",
@@ -319,7 +352,7 @@ def main() -> int:
     boot.add_argument("--node-id", default="edge-node-1")
     boot.add_argument("--instance-id", default="instance-1")
     boot.add_argument("--agent-id", default="agent-1")
-    boot.add_argument("--print-api-key", action="store_true")
+    boot.add_argument("--print-api-key", action="store_true", help="write api_key.once.txt (0600); never print raw key")
     boot.add_argument("--save-api-key", action="store_true", help="write api_key.once.txt under out-dir")
 
     we = sub.add_parser("write-edge-env", help="Write edge.env from an existing signed entitlement")
@@ -381,7 +414,19 @@ def main() -> int:
         return _cmd_write_edge_env(args)
 
     if args.cmd == "generate-api-key":
-        print(generate_api_key("atl_test"))
+        key = generate_api_key("atl_test")
+        key_path = _write_api_key_once(Path(".atl") / "api_key.once.txt", key)
+        print(
+            json.dumps(
+                {
+                    "status": "API_KEY_WRITTEN",
+                    "api_key_file": str(key_path.resolve()),
+                    "api_key_fingerprint": activation_fingerprint(key),
+                    "note": "Raw key written only to api_key_file (mode 0600); not printed.",
+                },
+                indent=2,
+            )
+        )
         return 0
 
     if args.cmd == "request-license":

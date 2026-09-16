@@ -171,4 +171,5 @@ def write_node_identity(identity: NodeIdentity, directory: Path) -> None:
 
 def activation_fingerprint(api_key: str) -> str:
     """Safe local reference for audit; never logs the activation key itself."""
+    # codeql[py/weak-sensitive-data-hashing] Not password hashing: truncated SHA-256 fingerprint of one-shot API key for audit display only.
     return hashlib.sha256(api_key.encode()).hexdigest()[:16]

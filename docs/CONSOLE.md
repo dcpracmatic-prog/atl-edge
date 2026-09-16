@@ -45,6 +45,23 @@ Missing/wrong token → **401**.
 
 ---
 
+## Quickstart (cliente)
+
+Un comando levanta Edge + consola e imprime la URL:
+
+```bash
+bash scripts/start_stack.sh
+# → Operator console: http://127.0.0.1:8795/
+# → Edge API (not the app): http://127.0.0.1:8790/health
+
+bash scripts/start_stack.sh --docker   # compose edge-api + web-console
+bash scripts/start_stack.sh --stop     # mata PIDs en .atl/run/
+```
+
+Edge-only (sin consola): `bash scripts/deploy_edge.sh`.
+
+---
+
 ## Phases 0–7 (lab audit stack)
 
 Adapt paths to this tree. Do **not** paste PATs into chat.
@@ -98,6 +115,15 @@ docker compose --profile sidecar up -d sidecar
 Criteria: `GET :8790/health` → 200. Execute without body / fields does not seal.
 
 ### Fase 4 — Console
+
+Preferido (orquesta Edge + consola):
+
+```bash
+bash scripts/start_stack.sh
+# Operator console: http://127.0.0.1:8795/
+```
+
+Manual:
 
 ```bash
 export ATL_CONSOLE_TOKEN="$(openssl rand -hex 32)"
@@ -177,7 +203,16 @@ Copy-paste and tick after a lab run:
 
 ---
 
-## Exact start commands (three processes)
+## Exact start commands
+
+**Recomendado:**
+
+```bash
+bash scripts/start_stack.sh
+# Operator console: http://127.0.0.1:8795/
+```
+
+Manual (three processes):
 
 ```bash
 # 1) Bootstrap once
@@ -199,6 +234,8 @@ PYTHONPATH=vendor:. python -m src.sidecar_server --host 127.0.0.1 --port 8787 &
 Or with Compose:
 
 ```bash
+bash scripts/start_stack.sh --docker
+# o paso a paso:
 bash scripts/deploy_edge.sh --bootstrap-only
 bash scripts/deploy_edge.sh --docker
 docker compose --profile sidecar up -d sidecar
