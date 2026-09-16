@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import hmac
 import json
 import os
 import secrets
@@ -169,6 +170,14 @@ def write_node_identity(identity: NodeIdentity, directory: Path) -> None:
     os.chmod(secret, 0o600)
 
 
+# Domain-separated app key for activation fingerprints (not a password KDF).
+_ACTIVATION_FP_APP_KEY = b"atl-edge-v1:activation-fingerprint"
+
+
 def activation_fingerprint(api_key: str) -> str:
-    """Safe local reference for audit; never logs the activation key itself."""
-    return hashlib.sha256(api_key.encode()).hexdigest()[:16]
+    """Safe local reference for audit; never logs the activation key itself.
+
+    Uses HMAC-SHA256 with a fixed domain-separated app key so the digest is not
+    a bare password hash (CodeQL py/weak-sensitive-data-hashing).
+    """
+    return hmac.new(_ACTIVATION_FP_APP_KEY, api_key.encode(), hashlib.sha256).hexdigest()[:16]
