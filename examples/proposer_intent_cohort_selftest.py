@@ -12,7 +12,7 @@ COHORT = Path(__file__).with_name("proposer_intent_cohort.json")
 
 def main() -> int:
     cases = json.loads(COHORT.read_text(encoding="utf-8"))
-    assert len(cases) >= 12
+    assert len(cases) >= 20
     for case in cases:
         intent = case["intent"]
         expect = case["expect"]
