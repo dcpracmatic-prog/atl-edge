@@ -91,6 +91,7 @@ def main() -> int:
         "háblame de los VIP from crm",
         "explícame los clientes from crm fields=[id]",
         "talk about the VIP customers from crm",
+        "¿Puedes hablarme en prosa de los clientes VIP?",
         # real PII asks (not negations)
         "traer notas from crm",
     ):
@@ -118,6 +119,11 @@ def main() -> int:
     p_lim = template_propose("lookup from crm fields=[id] limit=10")
     assert p_lim["limit"] == 10
     print("proposer=NEGATION_AND_LIMIT_OK")
+
+    # Default fields when fields=[...] is absent
+    p = template_propose("Lista clientes activos en México: solo id, región y status.")
+    assert p["fields"] == ["id", "region", "status"], p
+    assert p["resource"] == "crm"
 
     # --- Template feeds ProposalGate ---
     policy = default_proposal_policy()
