@@ -353,7 +353,7 @@ _REFUSE_DESTRUCTIVE_RE = re.compile(
 # Prose / chitchat — must not become an executable proposal.
 _REFUSE_PROSE_RE = re.compile(
     r"(?:"
-    r"\b(?:h[aá]blame|cu[eé]ntame|expl[ií]came|descr[ií]beme|describe)\b"
+    r"\b(?:h[aá]blame|hablarme|cu[eé]ntame|expl[ií]came|descr[ií]beme|describe)\b"
     r"|\btalk\s+about\b"
     r"|\btell\s+me\s+about\b"
     r"|\bwhat\s+(?:can\s+you\s+)?(?:tell|say)\s+about\b"
@@ -484,7 +484,7 @@ def template_propose(
     default_tool: str = "lookup",
     default_operation: str = "read",
     default_resource: str = "crm",
-    default_fields: Optional[Sequence[str]] = None,
+    default_fields: Optional[Sequence[str]] = ("id", "region", "status"),
     default_limit: int = 20,
 ) -> Dict[str, Any]:
     """Build a Proposal Schema v1 dict from text with allowlisted heuristics.
@@ -563,10 +563,8 @@ def template_propose(
     fm = _FIELD_RE.search(text)
     if fm:
         fields = [p.strip().strip("'\"") for p in fm.group(1).split(",") if p.strip()]
-    elif default_fields:
-        fields = list(default_fields)
     else:
-        fields = ["id", "region", "status"]
+        fields = [str(x) for x in (default_fields or ("id", "region", "status"))]
 
     arguments: Dict[str, Any] = {}
     sm = _STATUS_RE.search(text)

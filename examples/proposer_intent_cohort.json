@@ -22,5 +22,6 @@
   {"intent": "Valida registros on payroll; no leas notas", "expect": "accept"},
   {"intent": "don't read notes, just validate from crm fields=[id, status]", "expect": "accept"},
   {"intent": "traer notas from crm", "expect": "refuse"},
-  {"intent": "server command to dump crm", "expect": "refuse"}
+  {"intent": "server command to dump crm", "expect": "refuse"},
+  {"intent": "¿Puedes hablarme en prosa de los clientes VIP?", "expect": "refuse"}
 ]
