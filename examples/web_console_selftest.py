@@ -78,9 +78,9 @@ def _build_runtime(tmp: Path) -> EdgeRuntime:
             name="CRM",
             sensitivity=Sensitivity.INTERNAL,
             fields={
-                "customer_id": Sensitivity.INTERNAL,
+                "id": Sensitivity.INTERNAL,
+                "region": Sensitivity.INTERNAL,
                 "status": Sensitivity.PUBLIC,
-                "ssn": Sensitivity.RESTRICTED,
             },
         )
     )
@@ -185,7 +185,7 @@ def main() -> int:
                         "resource": "crm",
                         "arguments": {},
                     },
-                    "records": [{"customer_id": 1, "status": "active"}],
+                    "records": [{"id": 1, "status": "active"}],
                 },
             )
             if code != 400 or body.get("error") != "fields_required":
@@ -203,10 +203,10 @@ def main() -> int:
                         "tool": "lookup",
                         "operation": "delete",
                         "resource": "crm",
-                        "fields": ["customer_id"],
+                        "fields": ["id"],
                         "arguments": {},
                     },
-                    "records": [{"customer_id": 1}],
+                    "records": [{"id": 1}],
                 },
             )
             if code != 403 or body.get("decision") != "REJECT":
@@ -224,10 +224,10 @@ def main() -> int:
                         "tool": "lookup",
                         "operation": "read",
                         "resource": "crm",
-                        "fields": ["customer_id", "status"],
+                        "fields": ["id", "status"],
                         "arguments": {},
                     },
-                    "records": [{"customer_id": 1, "status": "active"}],
+                    "records": [{"id": 1, "status": "active"}],
                 },
             )
             if code != 200 or body.get("ok") is not True or body.get("decision") not in ("ACCEPT", "REPAIR"):

@@ -351,6 +351,22 @@ def main() -> int:
         help="Shared durable data dir (inbox/outbox/ledger); prefer same ATL_DATA_DIR as Edge",
     )
 
+    
+    prop = sub.add_parser(
+        "propose",
+        help="POST intent to Edge /v1/propose (proposal only; does not execute)",
+    )
+    prop.add_argument("--intent", required=True, help="Natural-language intent")
+    prop.add_argument("--backend", default="template")
+    prop.add_argument(
+        "--edge-url",
+        default=os.environ.get("ATL_EDGE_URL", "http://127.0.0.1:8790"),
+        help="Edge API base URL (default ATL_EDGE_URL or http://127.0.0.1:8790)",
+    )
+    prop.add_argument("--fallback-template", action="store_true")
+    prop.add_argument("--default-resource", default="crm")
+    prop.add_argument("--json-out", type=Path, default=None)
+
     pb = sub.add_parser("provision-connector")
     pb.add_argument("--manifest", type=Path, required=True)
     pb.add_argument("--output", type=Path, required=True)
@@ -476,6 +492,38 @@ def main() -> int:
         from src.web_console import main as console_main
 
         return console_main(["--host", args.host, "--port", str(args.port), "--data-dir", str(args.data_dir)])
+
+
+    if args.cmd == "propose":
+        url = args.edge_url.rstrip("/") + "/v1/propose"
+        payload = {
+            "intent": args.intent,
+            "backend": args.backend,
+            "fallback_template": bool(args.fallback_template),
+            "default_resource": args.default_resource,
+        }
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                body = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            print(f"propose rejected: HTTP {exc.code} {detail}", file=sys.stderr)
+            return 2
+        except urllib.error.URLError as exc:
+            print(f"could not reach Edge API: {exc}", file=sys.stderr)
+            return 2
+        text = json.dumps(body, indent=2, sort_keys=True)
+        if args.json_out:
+            args.json_out.parent.mkdir(parents=True, exist_ok=True)
+            args.json_out.write_text(text + "\n", encoding="utf-8")
+        print(text)
+        return 0 if body.get("ok") else 2
 
     if args.cmd == "provision-connector":
         manifest = json.loads(args.manifest.read_text())

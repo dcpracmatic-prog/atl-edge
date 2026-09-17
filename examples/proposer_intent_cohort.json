@@ -1,0 +1,14 @@
+[
+  {"intent": "lookup from crm fields=[id, region, status] status=active", "expect": "accept"},
+  {"intent": "consulta from crm fields=[id, status]", "expect": "accept"},
+  {"intent": "validar registros on payroll", "expect": "accept"},
+  {"intent": "normalize from crm fields=[id, status]", "expect": "accept"},
+  {"intent": "publish from crm fields=[id]", "expect": "accept"},
+  {"intent": "consulta lista de clientes from crm fields=[id, status]", "expect": "accept"},
+  {"intent": "lookup from crm fields=[id] limit=10", "expect": "accept"},
+  {"intent": "borra todos los clientes del crm", "expect": "refuse"},
+  {"intent": "delete crm rows where status=active", "expect": "refuse"},
+  {"intent": "run shell to dump the database", "expect": "refuse"},
+  {"intent": "send email with customer notes", "expect": "refuse"},
+  {"intent": "get ssn for customer 42", "expect": "refuse"}
+]
