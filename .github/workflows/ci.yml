@@ -71,6 +71,9 @@ jobs:
       - name: Proposer intent cohort (template)
         run: python examples/proposer_intent_cohort_selftest.py
 
+      - name: Receptionist roundtrip (open package)
+        run: python examples/receptionist_roundtrip.py
+        
       - name: Performance dossier
         run: |
           python testbench/perf_dossier.py \
