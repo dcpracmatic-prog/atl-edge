@@ -6,6 +6,9 @@ on:
     - cron: "0 6 * * *"   # 06:00 UTC daily
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 env:
   PYTHONPATH: vendor:.
   PIP_INDEX_URL: https://pypi.org/simple
