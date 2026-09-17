@@ -96,6 +96,34 @@ ATLP (AES-GCM, TTL, anti-replay, clave de nodo)
 Conector / agente premium
 ```
 
+
+
+### Agente local: proponer con decoding acotado
+
+El adaptador explícito vive en `src/proposer.py` (antes el README describía el flujo
+sin un módulo que generara la propuesta):
+
+```python
+from src.proposer import propose, ProposeBackend
+from src.proposal_gate import ProposalGate, default_proposal_policy
+from src.morph8 import MorphGate
+
+# Deterministic / no-LLM path (always available)
+proposal = propose("lookup from crm fields=[id, status] status=active",
+                   backend=ProposeBackend.TEMPLATE)
+
+# Grammar backends (outlines | xgrammar | llama_cpp): require the optional stack.
+# If the backend cannot enforce grammar → ConstrainedDecodeError (fail closed)
+# or template if fallback_template=True. Never unconstrained TinyLlama prose.
+# proposal = propose(text, backend="llama_cpp", model=llm)
+
+gate = ProposalGate(default_proposal_policy(), MorphGate())
+assert gate.check(proposal).allowed
+# then: ATLDataPlaneMVP.execute_and_issue(proposal, records, executor=...)
+```
+
+Self-test: `PYTHONPATH=. python examples/proposer_selftest.py`
+
 ### 3. Minimización explícita
 
 La propuesta declara **qué campos** necesita. El predigest proyecta las filas a esa lista. En modo producción / Edge API, **sin `fields` no hay emisión**. Así se evita el “te mando el record entero por si acaso”.
@@ -117,6 +145,7 @@ La propuesta declara **qué campos** necesita. El predigest proyecta las filas a
 | Capacidad | Qué hace | Dónde vive |
 |-----------|----------|------------|
 | **Proposal Schema v1** | Contrato ejecutable del agente local; rechaza campos desconocidos o peligrosos | `src/proposal_gate.py` |
+| **Local proposer (constrained)** | Adapta texto del agente local → dict Proposal Schema v1 con decoding acotado (`outlines` / `xgrammar` / llama.cpp GBNF) o plantilla; **nunca** prosa libre | `src/proposer.py` |
 | **MORPH-8** | Gate estructural: tools permitidas, acciones, grafo causal, reparación acotada | `src/morph8.py` / `morph8.cpp` |
 | **Policy semántica** | Allowlists de operaciones, límites de efectos/campos, rechazo de destructivos | `ProposalGate` |
 | **Data catalog / auth** | Clasificación y permiso por recurso y campos en el nodo | `src/data_catalog.py` |
