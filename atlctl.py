@@ -1,17 +1,3 @@
-#!/usr/bin/env python3
-"""ATL Edge control CLI: license issuance, activation, Edge env bootstrap, status.
-
-Licensing tokens are produced in two steps:
-
-1. **issue-license** (admin / control plane) — creates a license and prints the
-   opaque API key **once**. Only a fingerprint is stored.
-2. **activate-local** or **request-license** — exchanges the API key for a
-   signed entitlement bound to node_id + instance_id + agent_id.
-
-**bootstrap-edge** runs both against a local control-plane state directory and
-writes ``edge.env`` + ``entitlement.json`` so the Edge API can start without
-dev crypto defaults.
-"""
 from __future__ import annotations
 
 import argparse
@@ -381,7 +367,16 @@ def main() -> int:
         return _cmd_write_edge_env(args)
 
     if args.cmd == "generate-api-key":
-        print(generate_api_key("atl_test"))
+        # Dev helper only. Never print the raw token unless ATL_PRINT_DEV_KEY=1.
+        dev_key = generate_api_key("atl_test")
+        payload = {
+            "status": "DEV_ONLY",
+            "fingerprint": activation_fingerprint(dev_key),
+            "note": "not issued by the control plane; set ATL_PRINT_DEV_KEY=1 to emit the raw key",
+        }
+        print(json.dumps(payload, indent=2))
+        if os.environ.get("ATL_PRINT_DEV_KEY") == "1":
+            print(dev_key)
         return 0
 
     if args.cmd == "request-license":
