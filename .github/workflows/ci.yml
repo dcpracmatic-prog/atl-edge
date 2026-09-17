@@ -1,5 +1,4 @@
-# CI — ATL Edge SmartToken Integrated Hardened v2
-# Runs on every push/PR to main. Produces adversarial + performance evidence artifacts.
+# CI — ATL Edge SmartToken Integrated Hardened 
 
 name: CI
 
@@ -65,6 +64,12 @@ jobs:
 
       - name: Long-lived protection self-test
         run: python examples/long_lived_protection_selftest.py
+
+      - name: Constrained proposer selftest
+        run: python examples/proposer_selftest.py
+
+      - name: Proposer intent cohort (template)
+        run: python examples/proposer_intent_cohort_selftest.py
 
       - name: Performance dossier
         run: |
@@ -321,4 +326,3 @@ jobs:
         env:
           PYTHONPATH: vendor:.
         run: python examples/web_console_selftest.py
-
