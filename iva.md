@@ -43,6 +43,7 @@ The coherence layer remains complementary: primary telemetry, DSP regime signatu
 
 ## What is connected now
 
+- **Local proposer / constrained decoding** (`src/proposer.py`): turns operator/agent text into a Proposal Schema v1 **dict** via outlines, xgrammar, or llama.cpp GBNF (optional deps), or a deterministic template. Missing grammar support fails closed or falls back to template — never unconstrained free-form LLM prose. Feeds `ProposalGate.check` / `ATLDataPlaneMVP.execute_and_issue`.
 - **Proposal Schema v1** (`src/proposal_gate.py`): explicit executable contract with `tool`, `operation`, `arguments`, optional `action`, `resource`, `fields`, `limit`, `steps`, `effects`, and metadata. Unknown executable fields are rejected. Semantic policy also checks operation allowlists, destructive operations, argument size/dangerous keys, field/effect limits, and step operations.
 - **MORPH-8** (`src/morph8.cpp`, `src/morph8.py`): **core** structural gate on the local agent's proposal before anything runs. Deterministic validation/repair with bounded parser, allowlisted tools, action policy, causal graph checks, and rejection of control/dangerous fields. This is the layer that evaluates what the on-prem Llama (or same-enterprise node) is allowed to *request* toward the premium/cloud path — not an optional side feature.
 - **Hard execution barrier** (`ProposalGate` / `ATLDataPlaneMVP.execute_and_issue`): schema + MORPH + semantic policy must accept before the executor runs. A rejected proposal cannot reach side effects on the canonical MVP seam.
