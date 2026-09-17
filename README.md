@@ -124,13 +124,15 @@ assert gate.check(proposal).allowed
 
 Self-test: `PYTHONPATH=. python examples/proposer_selftest.py`
 
+Defense in depth: the **proposer** constrains *format*, the **gate** constrains *semantics*, and the **catalog** constrains *fields*. Optional LLM stacks live in `requirements-proposer.txt` (not default `requirements.txt`). Runtime: `POST /v1/propose` on the Edge API (proposal only); `atlctl propose --intent ...` and the operator console Propose panel call that path / the same adapter. In notebooks, pin a commit SHA and set `USE_REPO_PROPOSER=True` to import `src.proposer`.
+
 ### 3. Minimización explícita
 
 La propuesta declara **qué campos** necesita. El predigest proyecta las filas a esa lista. En modo producción / Edge API, **sin `fields` no hay emisión**. Así se evita el “te mando el record entero por si acaso”.
 
 ### 4. Confianza de proceso vs confianza de red
 
-- **Red:** el Edge API solo expone salud, capacidades y `execute` sobre el MVP.  
+- **Red:** el Edge API expone salud, capacidades, `propose` (solo propuesta) y `execute` sobre el MVP.  
 - **Proceso:** quien ya corre código dentro del mismo proceso con acceso al data plane sigue en un modelo de confianza de proceso (detalle en [iva.md](iva.md)).
 
 ### 5. Criptografía alineada al uso

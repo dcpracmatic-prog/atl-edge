@@ -20,6 +20,7 @@ Endpoints
 GET  /health
 GET  /v1/capabilities
 POST /v1/execute   — proposal + records → gate → authorize → executor stub → ATLP issue
+POST /v1/propose   — intent (+ backend options) → proposer → proposal + ProposeResult only
 
 Forbidden (must 404): anything resembling ``/v1/issue``, ``/v1/data_plane``,
 ``/v1/seal``, ``/admin/issue_for_agent``, etc.
@@ -64,6 +65,7 @@ ALLOWED_PATHS = frozenset({
     "/health",
     "/v1/capabilities",
     "/v1/execute",
+    "/v1/propose",
 })
 
 # Paths an attacker might probe for a raw seal surface.
@@ -148,6 +150,45 @@ class EdgeRuntime:
             "metrics": dict(execution.issue.metrics) if execution.issue else {},
         }
 
+    def propose(
+        self,
+        intent: str,
+        *,
+        backend: str = "template",
+        fallback_template: bool = False,
+        default_resource: str = "crm",
+        default_fields=None,
+        default_limit: int = 20,
+        max_tokens: int = 512,
+    ) -> Dict[str, Any]:
+        """Run the constrained proposer only — never execute / seal.
+
+        Returns proposal + ProposeResult metadata. Callers that need side
+        effects must POST a finished proposal to ``/v1/execute`` separately.
+        """
+        from src.proposer import ConstrainedDecodeError, propose_detailed
+
+        try:
+            result = propose_detailed(
+                intent,
+                backend=backend,
+                fallback_template=fallback_template,
+                default_resource=default_resource,
+                default_fields=default_fields,
+                default_limit=default_limit,
+                max_tokens=max_tokens,
+            )
+        except ConstrainedDecodeError as exc:
+            raise ValueError(f"propose_refused:{exc}") from exc
+        return {
+            "ok": True,
+            "proposal": result.proposal,
+            "backend": result.backend,
+            "constrained": result.constrained,
+            "source": result.source,
+        }
+
+
 
 def default_runtime_from_env() -> EdgeRuntime:
     """Build runtime from environment.
@@ -229,9 +270,11 @@ def default_runtime_from_env() -> EdgeRuntime:
             name="CRM",
             sensitivity=Sensitivity.INTERNAL,
             fields={
-                "customer_id": Sensitivity.INTERNAL,
+                # Aligned with template_propose defaults (id/region/status).
+                # Keep ssn out of the demo catalog; template refuses PII intents.
+                "id": Sensitivity.INTERNAL,
+                "region": Sensitivity.INTERNAL,
                 "status": Sensitivity.PUBLIC,
-                "ssn": Sensitivity.RESTRICTED,
             },
         )
     )
@@ -288,6 +331,7 @@ def make_handler(runtime: EdgeRuntime):
                         "ok": True,
                         "allowed_paths": sorted(ALLOWED_PATHS),
                         "execute": True,
+                        "propose": True,
                         "raw_issue": False,
                         "data_plane_exposed": False,
                     },
@@ -297,7 +341,7 @@ def make_handler(runtime: EdgeRuntime):
 
         def do_POST(self) -> None:
             path = self.path.split("?", 1)[0]
-            if path != "/v1/execute":
+            if path not in ("/v1/execute", "/v1/propose"):
                 self._send(404, _inert("not_found"))
                 return
             try:
@@ -307,6 +351,27 @@ def make_handler(runtime: EdgeRuntime):
                 return
             except Exception:
                 self._send(400, _inert("bad_json"))
+                return
+            if path == "/v1/propose":
+                intent = body.get("intent")
+                if not isinstance(intent, str) or not intent.strip():
+                    self._send(400, _inert("bad_request"))
+                    return
+                try:
+                    result = runtime.propose(
+                        intent.strip(),
+                        backend=str(body.get("backend") or "template"),
+                        fallback_template=bool(body.get("fallback_template", False)),
+                        default_resource=str(body.get("default_resource") or "crm"),
+                        default_fields=body.get("default_fields"),
+                        default_limit=int(body.get("default_limit") or 20),
+                        max_tokens=int(body.get("max_tokens") or 512),
+                    )
+                    self._send(200, result)
+                except ValueError:
+                    self._send(400, _inert("propose_refused"))
+                except Exception:
+                    self._send(400, _inert("rejected"))
                 return
             proposal = body.get("proposal")
             records = body.get("records") or []

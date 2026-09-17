@@ -77,12 +77,8 @@ def main() -> int:
         catalog = DataCatalog()
         catalog.register(DataAsset(
             asset_id="crm", name="CRM", sensitivity=Sensitivity.INTERNAL,
-            fields={"customer_id": Sensitivity.INTERNAL, "status": Sensitivity.PUBLIC},
+            fields={"id": Sensitivity.INTERNAL, "region": Sensitivity.INTERNAL, "status": Sensitivity.PUBLIC},
         ))
-        # "customer_id" trips the catalog's conservative "customer" field-name
-        # hint and reclassifies upward to CONFIDENTIAL even though the asset
-        # itself was registered as INTERNAL (see src/data_catalog.py) — the
-        # classifier never downgrades, so the node policy has to allow for it.
         access = NodeAccessPolicy(node_id=NODE_ID, allowed_assets=("crm",), max_sensitivity=Sensitivity.CONFIDENTIAL)
         gate = ProposalGate(default_proposal_policy())
 
@@ -91,12 +87,12 @@ def main() -> int:
 
         proposal = {
             "schema_version": 1, "tool": "lookup", "operation": "read", "resource": "crm",
-            "fields": ["customer_id", "status"], "arguments": {"status": "active"},
+            "fields": ["id", "region", "status"], "arguments": {"status": "active"},
         }
-        records = [{"customer_id": i, "status": "active"} for i in range(10)]
+        records = [{"id": i, "region": "MX", "status": "active"} for i in range(10)]
         execution = mvp.execute_and_issue(
             proposal, records, executor=lambda p: "executed",
-            fields=["customer_id", "status"], request_id="e2e-req-1",
+            fields=["id", "region", "status"], request_id="e2e-req-1",
         )
         assert execution.executor_result == "executed"
         assert execution.issue.header.license_id == entitlement.license_id

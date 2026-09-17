@@ -66,10 +66,15 @@ pre{white-space:pre-wrap;overflow:auto;color:#7ee787}
 <button onclick="saveToken()">Use token</button><span id="auth"></span></section>
 <section><h2>Status</h2><button onclick="callApi('/api/status')">Refresh</button>
 <pre id="out">Enter the operator token, then refresh.</pre></section>
+<section><h2>Propose from intent</h2>
+<input id="intent" style="width:97%" placeholder="lookup from crm fields=[id, region, status] status=active">
+<br><button onclick="propose()">Propose (no execute)</button>
+<p style="opacity:.8;font-size:13px">Calls the constrained proposer only. Paste the proposal into Execute when ready.</p></section>
 <section><h2>Execute proposal</h2>
-<textarea id="payload">{"proposal":{"schema_version":1,"tool":"lookup","operation":"read","resource":"crm","fields":["customer_id","status"],"arguments":{}},"records":[{"customer_id":1,"status":"active"}]}</textarea>
+<textarea id="payload">{"proposal":{"schema_version":1,"tool":"lookup","operation":"read","resource":"crm","fields":["id","region","status"],"arguments":{}},"records":[{"id":1,"region":"MX","status":"active"}]}</textarea>
 <br><button onclick="execute()">Gate and execute</button></section>
 <script>
+
 const token=document.getElementById('token'), out=document.getElementById('out');
 token.value=sessionStorage.getItem('atlConsoleToken')||'';
 function saveToken(){sessionStorage.setItem('atlConsoleToken',token.value);document.getElementById('auth').textContent=' token held in this tab only';}
@@ -78,6 +83,7 @@ async function callApi(path,opts={}){
   const x=await r.json(); out.textContent=JSON.stringify(x,null,2); return x;
 }
 function execute(){callApi('/api/work/execute',{method:'POST',body:document.getElementById('payload').value})}
+async function propose(){const intent=document.getElementById('intent').value; const x=await callApi('/api/work/propose',{method:'POST',body:JSON.stringify({intent,backend:'template'})}); if(x&&x.proposal){const cur=JSON.parse(document.getElementById('payload').value||'{}'); cur.proposal=x.proposal; if(!Array.isArray(cur.records))cur.records=[]; document.getElementById('payload').value=JSON.stringify(cur);}}
 </script></body></html>
 """
 
@@ -259,6 +265,34 @@ class ConsoleState:
                 "expiry": entry.expiry,
             },
         }
+
+    def propose(self, body: Mapping[str, Any]) -> Dict[str, Any]:
+        """Constrained propose only — never execute / seal."""
+        from src.proposer import ConstrainedDecodeError, propose_detailed
+
+        intent = body.get("intent")
+        if not isinstance(intent, str) or not intent.strip():
+            raise ValueError("intent_required")
+        backend = str(body.get("backend") or "template")
+        try:
+            result = propose_detailed(
+                intent.strip(),
+                backend=backend,
+                fallback_template=bool(body.get("fallback_template", False)),
+                default_resource=str(body.get("default_resource") or "crm"),
+                default_fields=body.get("default_fields"),
+                default_limit=int(body.get("default_limit") or 20),
+            )
+        except ConstrainedDecodeError as exc:
+            raise ValueError(f"propose_refused:{exc}") from exc
+        return {
+            "ok": True,
+            "proposal": result.proposal,
+            "backend": result.backend,
+            "constrained": result.constrained,
+            "source": result.source,
+        }
+
 
     def ledger(self) -> List[Dict[str, Any]]:
         if not self.ledger_path.exists():
@@ -447,6 +481,7 @@ def make_console_handler(state: ConsoleState):
             # License issuance is intentionally absent and reaches this 404.
             dispatch = {
                 "/api/work/execute": state.execute,
+                "/api/work/propose": state.propose,
                 "/api/agents/provision": state.provision,
                 "/api/artifacts/protect": state.protect,
                 "/api/artifacts/open": state.open,

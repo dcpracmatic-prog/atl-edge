@@ -2,9 +2,13 @@
 """Self-test: constrained local-agent proposer → ProposalGate / MVP seam."""
 from __future__ import annotations
 
+import hashlib
 import json
+import sys
 import tempfile
+import types
 from pathlib import Path
+from unittest.mock import MagicMock
 
 from src.morph8 import MorphGate
 from src.mvp import ATLDataPlaneMVP
@@ -14,6 +18,7 @@ from src.proposer import (
     PROPOSAL_SCHEMA_V1,
     ConstrainedDecodeError,
     ProposeBackend,
+    _generate_llama_cpp,
     backend_available,
     propose,
     propose_and_check,
@@ -21,7 +26,6 @@ from src.proposer import (
     proposal_schema_v1_gbnf,
     template_propose,
 )
-import hashlib
 
 
 def main() -> int:
@@ -34,7 +38,17 @@ def main() -> int:
     ]
     gbnf = proposal_schema_v1_gbnf()
     assert "schema_version" in gbnf and "lookup" in gbnf
-    assert "shell" not in gbnf.lower() or True  # grammar simply omits shell
+    assert '"shell"' not in gbnf.lower()
+    assert '"command"' not in gbnf.lower()
+    assert "limit-val" in gbnf
+    assert "arg-key" in gbnf
+    try:
+        from llama_cpp import LlamaGrammar  # type: ignore
+
+        LlamaGrammar.from_string(gbnf)
+        print("proposer=GBNF_LLAMA_GRAMMAR_OK")
+    except ImportError:
+        print("proposer=GBNF_LLAMA_GRAMMAR_SKIP")
 
     # --- Template happy path ---
     p = template_propose(
@@ -50,6 +64,32 @@ def main() -> int:
 
     p2 = propose("validar registros on payroll", backend="template")
     assert p2["tool"] == "validate" and p2["operation"] == "validate"
+
+    # Spanish "de" must not become the resource (lista de clientes).
+    p_de = template_propose("consulta lista de clientes from crm fields=[id, status]")
+    assert p_de["resource"] == "crm"
+
+    # Template must refuse destructive / PII-style intents (never silent lookup).
+    for intent in (
+        "borra todos los clientes del crm",
+        "delete crm rows",
+        "run shell please",
+        "execute bash",
+        "send email to bob",
+        "show notes",
+        "get ssn for customer",
+    ):
+        try:
+            template_propose(intent)
+            raise AssertionError(f"template must refuse intent: {intent!r}")
+        except ConstrainedDecodeError:
+            pass
+        try:
+            propose(intent, backend="template")
+            raise AssertionError(f"propose(template) must refuse: {intent!r}")
+        except ConstrainedDecodeError:
+            pass
+    print("proposer=REFUSE_INTENTS_OK")
 
     # --- Template feeds ProposalGate ---
     policy = default_proposal_policy()
@@ -112,6 +152,15 @@ def main() -> int:
     )
     assert fb["tool"] == "lookup"
     assert (fb.get("metadata") or {}).get("proposer") == "template"
+    fb_d = propose_detailed(
+        "lookup from crm fields=[id] status=ok",
+        backend="xgrammar",
+        fallback_template=True,
+    )
+    assert fb_d.backend == "template", fb_d
+    assert fb_d.source == "template"
+    assert fb_d.constrained is False
+    print("proposer=FALLBACK_BACKEND_TEMPLATE_OK")
 
     # --- Injected generator that returns prose / invalid JSON → fail closed ---
     def prose_generator(user_text: str, schema) -> str:
@@ -139,6 +188,69 @@ def main() -> int:
         raise AssertionError("unknown/dangerous fields must be rejected")
     except ConstrainedDecodeError:
         pass
+
+
+    # --- llama_cpp mock: grammar= must be passed to create_completion ---
+    fake_llama = types.ModuleType("llama_cpp")
+
+    class FakeGrammar:
+        @staticmethod
+        def from_string(s: str):
+            assert "schema_version" in s
+            return "FAKE_GRAMMAR"
+
+    fake_llama.LlamaGrammar = FakeGrammar
+    sys.modules["llama_cpp"] = fake_llama
+    try:
+        model = MagicMock()
+        model.create_completion = MagicMock(
+            return_value={
+                "choices": [
+                    {
+                        "text": json.dumps(
+                            {
+                                "schema_version": 1,
+                                "tool": "lookup",
+                                "operation": "read",
+                                "resource": "crm",
+                                "fields": ["id"],
+                                "arguments": {},
+                                "effects": ["read"],
+                            }
+                        )
+                    }
+                ]
+            }
+        )
+        raw = _generate_llama_cpp("lookup from crm fields=[id]", model=model)
+        assert model.create_completion.called
+        kwargs = model.create_completion.call_args.kwargs
+        assert kwargs.get("grammar") == "FAKE_GRAMMAR"
+        assert json.loads(raw)["tool"] == "lookup"
+        print("proposer=LLAMA_CPP_GRAMMAR_KWARG_OK")
+    finally:
+        sys.modules.pop("llama_cpp", None)
+
+    # --- xgrammar fail-closed when generate_constrained missing ---
+    class BareModel:
+        def generate(self, *a, **k):
+            return (
+                '{"schema_version":1,"tool":"lookup","operation":"read","arguments":{}}'
+            )
+
+    try:
+        propose("x", backend="xgrammar", model=BareModel(), fallback_template=False)
+        # If package missing, ConstrainedDecodeError is also correct.
+        if backend_available("xgrammar"):
+            raise AssertionError("xgrammar must fail closed without generate_constrained")
+    except ConstrainedDecodeError as exc:
+        msg = str(exc).lower()
+        assert (
+            "generate_constrained" in msg
+            or "not installed" in msg
+            or "fail closed" in msg
+        )
+    print("proposer=XGRAMMAR_FAIL_CLOSED_OK")
 
     # --- End-to-end: propose → execute_and_issue ---
     master = hashlib.sha256(b"atl-proposer-selftest").digest()

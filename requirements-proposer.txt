@@ -1,0 +1,19 @@
+# Optional extras for constrained local-agent proposers.
+# Do NOT install these into the default Edge runtime (keeps GPU/LLM stacks out of prod images).
+#
+# Template backend needs nothing beyond requirements.txt.
+#
+# lm-format-enforcer path (transformers; what already runs on Kaggle):
+lm-format-enforcer>=0.10.0
+transformers>=4.40.0
+# torch is environment-specific (CPU/CUDA/ROCm) — pin in the notebook/image, not here.
+#
+# llama.cpp GBNF:
+llama-cpp-python>=0.2.90
+#
+# Experimental (mark experimental in ProposeBackend until real-model CI exists):
+# outlines>=0.0.46
+# xgrammar>=0.1.0
+#
+# Pin SHAs in notebooks when importing src.proposer:
+#   USE_REPO_PROPOSER=True  # import from this repo instead of a vendored copy

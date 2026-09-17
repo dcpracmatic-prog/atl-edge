@@ -8,9 +8,10 @@ proposal **dict** accepted by ``ProposalGate.check`` /
 
 Constrained decoding backends (explicit; pick one at call time):
 
-* ``outlines`` — JSON Schema constrained generation (optional dependency)
-* ``xgrammar`` — grammar-constrained generation (optional dependency)
+* ``lm_format_enforcer`` — transformers + lm-format-enforcer (optional; Kaggle path)
 * ``llama_cpp`` — llama.cpp GBNF grammar (optional ``llama-cpp-python``)
+* ``outlines`` — JSON Schema constrained generation (**experimental**)
+* ``xgrammar`` — grammar-constrained generation (**experimental**)
 * ``template`` — deterministic, allowlisted template (no LLM)
 
 Fail-closed rule
@@ -19,6 +20,12 @@ If a grammar-capable backend is requested but cannot enforce constraints
 (missing install, no grammar hook, model refuses structured mode), this module
 either **raises** ``ConstrainedDecodeError`` or falls back to ``template``.
 It never returns unconstrained free-form LLM prose as a proposal.
+
+Defense in depth
+----------------
+Schema / GBNF constrain *format* (and deny dangerous argument keys / step ops).
+ProposalGate constrains *semantics*. The catalog constrains *fields*.
+Do not loosen the gate because the schema already enumerates tools.
 """
 from __future__ import annotations
 
@@ -30,8 +37,46 @@ from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Union
 
 from .proposal_gate import (
     ProposalSchemaError,
+    default_proposal_policy,
     validate_proposal_schema,
 )
+
+# ---------------------------------------------------------------------------
+# Canonical system prompt (LLM-backed proposers)
+# ---------------------------------------------------------------------------
+
+CANONICAL_SYSTEM_PROMPT = (
+    "You are the ATL Edge local proposer. Emit ONLY a single JSON object matching "
+    "ATL Proposal Schema v1. Allowed tools: lookup, normalize, validate, publish. "
+    "Allowed operations: read, normalize, validate, publish. Never emit shell, "
+    "exec, delete, drop, truncate, email, notes, SSN/PII fields, or dangerous "
+    "argument keys (shell, exec, command, raw_sql, sql_script, subprocess, python). "
+    "Prefer minimal fields and an explicit resource. No markdown, no prose."
+)
+
+# Deny-list for JSON Schema propertyNames (aligned with ProposalPolicy).
+_DENY_ARGUMENT_KEYS = list(default_proposal_policy().deny_argument_keys)
+
+# GBNF cannot express a blocklist cleanly — use a safe allowlist (stricter).
+_GBNF_SAFE_ARG_KEYS = ("status", "q", "filter", "id", "region")
+
+_TOOL_ENUM = ["lookup", "normalize", "validate", "publish"]
+_OP_ENUM = ["read", "normalize", "validate", "publish"]
+_ACTION_ENUM = ["read", "transform", "validate", "publish"]
+
+
+def _arguments_schema() -> Dict[str, Any]:
+    return {
+        "type": "object",
+        "propertyNames": {
+            "type": "string",
+            "not": {"enum": list(_DENY_ARGUMENT_KEYS)},
+        },
+        "additionalProperties": {
+            "type": ["string", "number", "boolean", "null"]
+        },
+    }
+
 
 # ---------------------------------------------------------------------------
 # Schema v1 (JSON Schema) — aligned with validate_proposal_schema
@@ -49,22 +94,17 @@ PROPOSAL_SCHEMA_V1: Dict[str, Any] = {
         "tool": {
             "type": "string",
             "minLength": 1,
-            "enum": ["lookup", "normalize", "validate", "publish"],
+            "enum": list(_TOOL_ENUM),
         },
         "operation": {
             "type": "string",
             "minLength": 1,
-            "enum": ["read", "normalize", "validate", "publish"],
+            "enum": list(_OP_ENUM),
         },
-        "arguments": {
-            "type": "object",
-            "additionalProperties": {
-                "type": ["string", "number", "boolean", "null"]
-            },
-        },
+        "arguments": _arguments_schema(),
         "action": {
             "type": "string",
-            "enum": ["read", "transform", "validate", "publish"],
+            "enum": list(_ACTION_ENUM),
         },
         "resource": {"type": "string", "minLength": 1},
         "fields": {
@@ -77,7 +117,7 @@ PROPOSAL_SCHEMA_V1: Dict[str, Any] = {
             "type": "array",
             "items": {
                 "type": "string",
-                "enum": ["read", "transform", "validate", "publish"],
+                "enum": list(_ACTION_ENUM),
             },
         },
         "steps": {
@@ -89,10 +129,23 @@ PROPOSAL_SCHEMA_V1: Dict[str, Any] = {
                 "required": ["id", "tool", "operation"],
                 "properties": {
                     "id": {"type": "string", "minLength": 1},
-                    "tool": {"type": "string", "minLength": 1},
-                    "operation": {"type": "string", "minLength": 1},
-                    "arguments": {"type": "object"},
-                    "action": {"type": "string"},
+                    # Same enums as root so constrained generators cannot emit
+                    # delete/shell in a step.
+                    "tool": {
+                        "type": "string",
+                        "minLength": 1,
+                        "enum": list(_TOOL_ENUM),
+                    },
+                    "operation": {
+                        "type": "string",
+                        "minLength": 1,
+                        "enum": list(_OP_ENUM),
+                    },
+                    "arguments": _arguments_schema(),
+                    "action": {
+                        "type": "string",
+                        "enum": list(_ACTION_ENUM),
+                    },
                     "resource": {"type": "string"},
                     "fields": {
                         "type": "array",
@@ -106,7 +159,10 @@ PROPOSAL_SCHEMA_V1: Dict[str, Any] = {
                     },
                     "effects": {
                         "type": "array",
-                        "items": {"type": "string"},
+                        "items": {
+                            "type": "string",
+                            "enum": list(_ACTION_ENUM),
+                        },
                     },
                 },
             },
@@ -120,38 +176,46 @@ def proposal_schema_v1_gbnf() -> str:
     """GBNF grammar for llama.cpp constrained decoding of Proposal Schema v1.
 
     Intentionally narrow (default policy tools/ops) so a local GGUF model cannot
-    emit shell/exec/delete fields. Callers may pass a custom GBNF via ``grammar``.
+    emit shell/exec/delete fields. Arguments use a safe-key allowlist aligned
+    with ``deny_argument_keys``. ``limit`` is constrained to 1-100 (schema max).
     """
-    return r"""
-root ::= "{" ws schema-version "," ws tool "," ws operation "," ws arguments resource-opt fields-opt limit-opt action-opt effects-opt "}" ws
-schema-version ::= "\"schema_version\"" ws ":" ws "1"
-tool ::= "\"tool\"" ws ":" ws tool-val
-tool-val ::= "\"lookup\"" | "\"normalize\"" | "\"validate\"" | "\"publish\""
-operation ::= "\"operation\"" ws ":" ws op-val
-op-val ::= "\"read\"" | "\"normalize\"" | "\"validate\"" | "\"publish\""
-arguments ::= "\"arguments\"" ws ":" ws object
-resource-opt ::= ("," ws "\"resource\"" ws ":" ws string)?
-fields-opt ::= ("," ws "\"fields\"" ws ":" ws string-array)?
-limit-opt ::= ("," ws "\"limit\"" ws ":" ws number)?
-action-opt ::= ("," ws "\"action\"" ws ":" ws action-val)?
-action-val ::= "\"read\"" | "\"transform\"" | "\"validate\"" | "\"publish\""
-effects-opt ::= ("," ws "\"effects\"" ws ":" ws effects-array)?
+    arg_alts = " | ".join(f'"\\"{k}\\""' for k in _GBNF_SAFE_ARG_KEYS)
+    return f"""
+root ::= "{{" ws schema-version "," ws tool "," ws operation "," ws arguments resource-opt fields-opt limit-opt action-opt effects-opt "}}" ws
+schema-version ::= "\\"schema_version\\"" ws ":" ws "1"
+tool ::= "\\"tool\\"" ws ":" ws tool-val
+tool-val ::= "\\"lookup\\"" | "\\"normalize\\"" | "\\"validate\\"" | "\\"publish\\""
+operation ::= "\\"operation\\"" ws ":" ws op-val
+op-val ::= "\\"read\\"" | "\\"normalize\\"" | "\\"validate\\"" | "\\"publish\\""
+arguments ::= "\\"arguments\\"" ws ":" ws args-object
+args-object ::= "{{" ws (arg-pair ("," ws arg-pair)*)? ws "}}"
+arg-pair ::= arg-key ws ":" ws arg-value
+arg-key ::= {arg_alts}
+arg-value ::= string | number | "true" | "false" | "null"
+resource-opt ::= ("," ws "\\"resource\\"" ws ":" ws string)?
+fields-opt ::= ("," ws "\\"fields\\"" ws ":" ws string-array)?
+limit-opt ::= ("," ws "\\"limit\\"" ws ":" ws limit-val)?
+limit-val ::= "100" | [1-9] [0-9]?
+action-opt ::= ("," ws "\\"action\\"" ws ":" ws action-val)?
+action-val ::= "\\"read\\"" | "\\"transform\\"" | "\\"validate\\"" | "\\"publish\\""
+effects-opt ::= ("," ws "\\"effects\\"" ws ":" ws effects-array)?
 effects-array ::= "[" ws (action-val ("," ws action-val)*)? ws "]"
 string-array ::= "[" ws (string ("," ws string)*)? ws "]"
-object ::= "{" ws (string ws ":" ws value ("," ws string ws ":" ws value)*)? ws "}"
-value ::= string | number | "true" | "false" | "null" | object | array
-array ::= "[" ws (value ("," ws value)*)? ws "]"
-string ::= "\"" ([^"\\] | "\\" ["\\/bfnrt] | "\\u" [0-9a-fA-F]{4})* "\""
+string ::= "\\"" ([^"\\\\] | "\\\\" ["\\\\/bfnrt] | "\\\\u" [0-9a-fA-F]{{4}})* "\\""
 number ::= "-"? ([0-9] | [1-9] [0-9]*) ("." [0-9]+)? ([eE] [+-]? [0-9]+)?
-ws ::= ([ \t\n\r])*
+ws ::= ([ \\t\\n\\r])*
 """.strip()
 
 
 class ProposeBackend(str, Enum):
-    OUTLINES = "outlines"
-    XGRAMMAR = "xgrammar"
+    LM_FORMAT_ENFORCER = "lm_format_enforcer"
     LLAMA_CPP = "llama_cpp"
+    OUTLINES = "outlines"  # experimental until real-model CI exists
+    XGRAMMAR = "xgrammar"  # experimental until real-model CI exists
     TEMPLATE = "template"
+
+
+EXPERIMENTAL_BACKENDS = frozenset({ProposeBackend.OUTLINES, ProposeBackend.XGRAMMAR})
 
 
 class ConstrainedDecodeError(RuntimeError):
@@ -185,6 +249,9 @@ def _normalize_backend(backend: Union[str, ProposeBackend, None]) -> ProposeBack
         "llama_cpp": ProposeBackend.LLAMA_CPP,
         "llama.cpp": ProposeBackend.LLAMA_CPP,
         "gbnf": ProposeBackend.LLAMA_CPP,
+        "lm_format_enforcer": ProposeBackend.LM_FORMAT_ENFORCER,
+        "lmformatenforcer": ProposeBackend.LM_FORMAT_ENFORCER,
+        "transformers": ProposeBackend.LM_FORMAT_ENFORCER,
         "template": ProposeBackend.TEMPLATE,
     }
     if key not in aliases:
@@ -218,6 +285,13 @@ def backend_available(backend: Union[str, ProposeBackend]) -> bool:
             return True
         except Exception:
             return False
+    if b is ProposeBackend.LM_FORMAT_ENFORCER:
+        try:
+            import lmformatenforcer  # noqa: F401
+            import transformers  # noqa: F401
+            return True
+        except Exception:
+            return False
     return False
 
 
@@ -243,8 +317,13 @@ def _parse_proposal_json(raw: str) -> Dict[str, Any]:
 # Template proposer (deterministic, fail-safe; never free-form LLM)
 # ---------------------------------------------------------------------------
 
+# Prefer resource= / from|on|tabla|table <id>. Do NOT match bare Spanish "de"
+# (false positive on "lista de clientes").
 _RESOURCE_RE = re.compile(
-    r"\b(?:from|on|resource|tabla|table|de)\s+[\"']?([A-Za-z_][A-Za-z0-9_\.]{0,63})[\"']?",
+    r"(?:"
+    r"\bresource\s*=\s*[\"']?([A-Za-z_][A-Za-z0-9_\.]{0,63})[\"']?"
+    r"|\b(?:from|on|tabla|table)\s+[\"']?([A-Za-z_][A-Za-z0-9_\.]{0,63})[\"']?"
+    r")",
     re.IGNORECASE,
 )
 _FIELD_RE = re.compile(
@@ -253,6 +332,18 @@ _FIELD_RE = re.compile(
 )
 _STATUS_RE = re.compile(
     r"\bstatus\s*[:=]\s*[\"']?([A-Za-z0-9_\-]+)[\"']?",
+    re.IGNORECASE,
+)
+
+# Intents the template must refuse (never silently rewrite to CRM lookup/read).
+_REFUSE_INTENT_RE = re.compile(
+    r"(?:"
+    r"\b(?:delete|borra(?:r|d[oa]s?)?|elimin(?:ar|a|e)|drop|truncate)\b"
+    r"|\b(?:shell|exec(?:ute)?|subprocess|bash|powershell)\b"
+    r"|\b(?:email|correo|e-mail)\b"
+    r"|\b(?:notes?|notas?)\b"
+    r"|\b(?:ssn|curp|rfc|pii|password|passwd|secret)\b"
+    r")",
     re.IGNORECASE,
 )
 
@@ -269,10 +360,16 @@ def template_propose(
     """Build a Proposal Schema v1 dict from text with allowlisted heuristics.
 
     This is the safe fallback when a grammar backend is unavailable. It does
-    not call an LLM.
+    not call an LLM. Destructive / PII-style intents raise ConstrainedDecodeError
+    (fail closed) instead of silently becoming a CRM lookup.
     """
     text = (user_text or "").strip()
     lower = text.lower()
+
+    if _REFUSE_INTENT_RE.search(text):
+        raise ConstrainedDecodeError(
+            "template refused intent (delete/shell/exec/email/notes/PII); fail closed"
+        )
 
     tool = default_tool
     operation = default_operation
@@ -291,7 +388,7 @@ def template_propose(
     resource = default_resource
     m = _RESOURCE_RE.search(text)
     if m:
-        resource = m.group(1)
+        resource = m.group(1) or m.group(2)
 
     fields: list[str]
     fm = _FIELD_RE.search(text)
@@ -390,11 +487,13 @@ def _generate_xgrammar(
             f"xgrammar could not compile proposal schema: {exc}"
         ) from exc
 
-    generate = getattr(model, "generate_constrained", None) or getattr(model, "generate", None)
+    # Fail closed: require generate_constrained — never fall through to generic
+    # model.generate (unconstrained).
+    generate = getattr(model, "generate_constrained", None)
     if not callable(generate):
         raise ConstrainedDecodeError(
-            "xgrammar backend requires model.generate_constrained(...) or "
-            "model.generate(...); no unconstrained path is provided"
+            "xgrammar backend requires model.generate_constrained(...); "
+            "no unconstrained model.generate fallback; fail closed"
         )
     out = generate(user_text, schema=dict(schema), max_tokens=max_tokens)
     if isinstance(out, dict):
@@ -425,16 +524,25 @@ def _generate_llama_cpp(
         raise ConstrainedDecodeError(f"invalid GBNF grammar: {exc}") from exc
 
     prompt = (
+        f"{CANONICAL_SYSTEM_PROMPT}\n\n"
         "Emit ONLY a JSON object matching ATL Proposal Schema v1 for this request:\n"
         f"{user_text}\n"
     )
-    # Grammar is mandatory — never call create without it.
-    completion = model.create(
-        prompt,
-        max_tokens=max_tokens,
-        temperature=temperature,
-        grammar=llama_grammar,
-    )
+    # llama-cpp-python: create_completion or __call__ — never model.create(...).
+    call_kwargs = {
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+        "grammar": llama_grammar,
+    }
+    if hasattr(model, "create_completion") and callable(model.create_completion):
+        completion = model.create_completion(prompt, **call_kwargs)
+    elif callable(model):
+        completion = model(prompt, **call_kwargs)
+    else:
+        raise ConstrainedDecodeError(
+            "llama_cpp model must support create_completion(...) or __call__(...); "
+            "model.create is not used"
+        )
     if isinstance(completion, dict):
         choices = completion.get("choices") or []
         if choices:
@@ -445,6 +553,72 @@ def _generate_llama_cpp(
     if text:
         return str(text)
     raise ConstrainedDecodeError("llama_cpp returned empty completion under grammar")
+
+
+def _generate_lm_format_enforcer(
+    user_text: str,
+    schema: Mapping[str, Any],
+    *,
+    model: Any,
+    tokenizer: Any = None,
+    max_tokens: int = 512,
+) -> str:
+    """transformers + lm-format-enforcer constrained path (Kaggle-style)."""
+    try:
+        from lmformatenforcer import JsonSchemaParser
+        from lmformatenforcer.integrations.transformers import (
+            build_transformers_prefix_allowed_tokens_fn,
+        )
+    except Exception as exc:  # pragma: no cover
+        raise ConstrainedDecodeError(
+            "lm_format_enforcer backend requested but lm-format-enforcer "
+            "(and transformers) are not installed"
+        ) from exc
+    if model is None:
+        raise ConstrainedDecodeError("lm_format_enforcer backend requires model=")
+    tok = tokenizer
+    if tok is None:
+        tok = getattr(model, "tokenizer", None)
+    if tok is None:
+        raise ConstrainedDecodeError(
+            "lm_format_enforcer backend requires tokenizer= (or model.tokenizer)"
+        )
+    try:
+        parser = JsonSchemaParser(dict(schema))
+        prefix_fn = build_transformers_prefix_allowed_tokens_fn(tok, parser)
+    except Exception as exc:
+        raise ConstrainedDecodeError(
+            f"lm-format-enforcer could not build schema constraint: {exc}"
+        ) from exc
+
+    prompt = f"{CANONICAL_SYSTEM_PROMPT}\n\nRequest:\n{user_text}\n\nJSON:\n"
+    generate = getattr(model, "generate", None)
+    if not callable(generate):
+        raise ConstrainedDecodeError(
+            "lm_format_enforcer backend requires model.generate(...); fail closed"
+        )
+    try:
+        inputs = tok(prompt, return_tensors="pt")
+        input_ids = inputs["input_ids"]
+        if hasattr(model, "device"):
+            input_ids = input_ids.to(model.device)
+        output_ids = generate(
+            input_ids,
+            max_new_tokens=max_tokens,
+            prefix_allowed_tokens_fn=prefix_fn,
+            do_sample=False,
+        )
+        gen_ids = output_ids[0][input_ids.shape[-1] :]
+        out = tok.decode(gen_ids, skip_special_tokens=True)
+    except TypeError:
+        out = generate(
+            prompt,
+            max_new_tokens=max_tokens,
+            prefix_allowed_tokens_fn=prefix_fn,
+        )
+    if isinstance(out, dict):
+        return json.dumps(out, ensure_ascii=False)
+    return str(out)
 
 
 def propose(
@@ -469,9 +643,11 @@ def propose(
     user_text:
         Natural-language intent from the local operator / agent front-end.
     schema:
-        JSON Schema used by outlines / xgrammar (defaults to PROPOSAL_SCHEMA_V1).
+        JSON Schema used by outlines / xgrammar / lm_format_enforcer
+        (defaults to PROPOSAL_SCHEMA_V1).
     backend:
-        ``outlines`` | ``xgrammar`` | ``llama_cpp`` | ``template``.
+        ``lm_format_enforcer`` | ``llama_cpp`` | ``outlines`` | ``xgrammar`` |
+        ``template``. ``outlines`` / ``xgrammar`` are experimental.
     model / tokenizer:
         Backend-specific model handle (required for grammar backends).
     grammar:
@@ -479,6 +655,7 @@ def propose(
     fallback_template:
         If True and a grammar backend is unavailable / cannot constrain,
         use ``template_propose`` instead of raising. Default False = fail closed.
+        Template refuse intents still raise even when fallback is enabled.
     generator:
         Optional injectable ``(user_text, schema) -> json_str`` for tests.
         When set with a grammar backend name, the call is treated as constrained
@@ -537,6 +714,14 @@ def propose(
             raw = _generate_llama_cpp(
                 user_text, model=model, grammar=grammar, max_tokens=max_tokens
             )
+        elif b is ProposeBackend.LM_FORMAT_ENFORCER:
+            raw = _generate_lm_format_enforcer(
+                user_text,
+                schema_map,
+                model=model,
+                tokenizer=tokenizer,
+                max_tokens=max_tokens,
+            )
         else:  # pragma: no cover
             raise ConstrainedDecodeError(f"unhandled backend {b!r}")
         return _parse_proposal_json(raw)
@@ -545,7 +730,12 @@ def propose(
 
 
 def propose_detailed(user_text: str, **kwargs: Any) -> ProposeResult:
-    """Like ``propose`` but returns backend/constraint metadata."""
+    """Like ``propose`` but returns backend/constraint metadata.
+
+    When ``fallback_template`` kicks in, effective ``backend`` is reported as
+    ``template`` (not the originally requested outlines/xgrammar/etc.) while
+    ``source`` stays accurate (``template``).
+    """
     backend = _normalize_backend(kwargs.get("backend", "template"))
     fallback = bool(kwargs.get("fallback_template", False))
     had_generator = kwargs.get("generator") is not None
@@ -555,22 +745,27 @@ def propose_detailed(user_text: str, **kwargs: Any) -> ProposeResult:
         raise
     constrained = backend is not ProposeBackend.TEMPLATE
     source = "template"
+    effective_backend = backend.value
     if backend is ProposeBackend.TEMPLATE:
         source = "template"
         constrained = False
+        effective_backend = ProposeBackend.TEMPLATE.value
     elif had_generator:
         source = "injected"
+        effective_backend = backend.value
     else:
-        # If we landed on template via fallback, detect via metadata.
         meta = proposal.get("metadata") or {}
         if isinstance(meta, dict) and meta.get("proposer") == "template" and fallback:
             source = "template"
             constrained = False
+            # Report effective backend as template when fallback kicked in.
+            effective_backend = ProposeBackend.TEMPLATE.value
         else:
             source = "grammar"
+            effective_backend = backend.value
     return ProposeResult(
         proposal=proposal,
-        backend=backend.value,
+        backend=effective_backend,
         constrained=constrained,
         source=source,
     )
@@ -588,6 +783,8 @@ def propose_and_check(
 
 __all__ = [
     "PROPOSAL_SCHEMA_V1",
+    "CANONICAL_SYSTEM_PROMPT",
+    "EXPERIMENTAL_BACKENDS",
     "ProposeBackend",
     "ProposeResult",
     "ConstrainedDecodeError",
