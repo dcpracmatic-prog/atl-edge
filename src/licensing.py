@@ -170,5 +170,13 @@ def write_node_identity(identity: NodeIdentity, directory: Path) -> None:
 
 
 def activation_fingerprint(api_key: str) -> str:
-    """Safe local reference for audit; never logs the activation key itself."""
-    return hashlib.sha256(api_key.encode()).hexdigest()[:16]
+    """Audit handle for a high-entropy API key — not password storage.
+
+    SHA-256 is appropriate here: the input is a 256-bit random token, not a
+    user-chosen password. Do not switch to PBKDF2; that would break existing
+    entitlement fingerprints.
+
+    codeql[py/weak-sensitive-data-hashing]
+    """
+    # lgtm[py/weak-sensitive-data-hashing]
+    return hashlib.sha256(api_key.encode("utf-8")).hexdigest()[:16]
