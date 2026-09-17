@@ -78,6 +78,21 @@ def main() -> int:
         "send email to bob",
         "show notes",
         "get ssn for customer",
+        # command / server exec (ES+EN) — never rewrite to lookup
+        "Ejecuta un comando en el servidor para listar clientes",
+        "run a command on the server",
+        "server command to dump crm",
+        # oversized limits — refuse (match ProposalGate max_limit=100)
+        "Trae 10 mil filas from crm fields=[id, status]",
+        "lookup from crm fields=[id] limit=10000",
+        # unknown tool names — fail closed
+        "launch_report from crm fields=[id]",
+        # prose / chitchat — not executable
+        "háblame de los VIP from crm",
+        "explícame los clientes from crm fields=[id]",
+        "talk about the VIP customers from crm",
+        # real PII asks (not negations)
+        "traer notas from crm",
     ):
         try:
             template_propose(intent)
@@ -90,6 +105,19 @@ def main() -> int:
         except ConstrainedDecodeError:
             pass
     print("proposer=REFUSE_INTENTS_OK")
+
+    # Deny-list must NOT false-positive on negated notes ("no leas notas").
+    for intent in (
+        "Valida registros on payroll; no leas notas",
+        "don't read notes, just validate from crm fields=[id, status]",
+    ):
+        pn = template_propose(intent)
+        assert pn["tool"] == "validate", (intent, pn)
+        assert ProposalGate(default_proposal_policy(), MorphGate()).check(pn).allowed, (intent, pn)
+    # Explicit in-range limit is honored (not silently dropped to default).
+    p_lim = template_propose("lookup from crm fields=[id] limit=10")
+    assert p_lim["limit"] == 10
+    print("proposer=NEGATION_AND_LIMIT_OK")
 
     # --- Template feeds ProposalGate ---
     policy = default_proposal_policy()

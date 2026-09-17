@@ -335,17 +335,147 @@ _STATUS_RE = re.compile(
     re.IGNORECASE,
 )
 
-# Intents the template must refuse (never silently rewrite to CRM lookup/read).
-_REFUSE_INTENT_RE = re.compile(
+# Hard refuse: destructive / shell / remote command intents (ES + EN).
+# Never silently rewrite these to CRM lookup/read.
+_REFUSE_DESTRUCTIVE_RE = re.compile(
     r"(?:"
     r"\b(?:delete|borra(?:r|d[oa]s?)?|elimin(?:ar|a|e)|drop|truncate)\b"
     r"|\b(?:shell|exec(?:ute)?|subprocess|bash|powershell)\b"
-    r"|\b(?:email|correo|e-mail)\b"
-    r"|\b(?:notes?|notas?)\b"
-    r"|\b(?:ssn|curp|rfc|pii|password|passwd|secret)\b"
+    r"|\b(?:comando|command)\b"
+    r"|\b(?:ejecut(?:a|ar|e|o|en|ad))\b"
+    r"|\brun\s+(?:a\s+)?commands?\b"
+    r"|\bserver\s+commands?\b"
+    r"|\bcommands?\s+on\s+(?:the\s+)?server\b"
     r")",
     re.IGNORECASE,
 )
+
+# Prose / chitchat — must not become an executable proposal.
+_REFUSE_PROSE_RE = re.compile(
+    r"(?:"
+    r"\b(?:h[aá]blame|cu[eé]ntame|expl[ií]came|descr[ií]beme|describe)\b"
+    r"|\btalk\s+about\b"
+    r"|\btell\s+me\s+about\b"
+    r"|\bwhat\s+(?:can\s+you\s+)?(?:tell|say)\s+about\b"
+    r")",
+    re.IGNORECASE,
+)
+
+# PII / sensitive field tokens. Matched with negation awareness (see helper).
+_PII_FIELD_RE = re.compile(
+    r"\b(?:notes?|notas?|ssn|curp|rfc|pii|password|passwd|secret|"
+    r"email|correo|e-mail)\b",
+    re.IGNORECASE,
+)
+
+# Negation window immediately before a PII token ("no leas notas", "don't read notes").
+_NEGATION_TAIL_RE = re.compile(
+    r"(?:^|[\s,;:(])(?:"
+    r"no|not|dont|do\s+not|nunca|sin|without|avoid|skip|"
+    r"don[’']t|n[’']t"
+    r")(?:\s+\w+){0,4}\s*$",
+    re.IGNORECASE,
+)
+
+# Explicit limit=N / "N filas|rows|registros" / "N mil …".
+_LIMIT_EQ_RE = re.compile(r"\blimit\s*[:=]?\s*(\d+)\b", re.IGNORECASE)
+_ROW_COUNT_RE = re.compile(
+    r"\b(\d+)\s*(mil)?\s*(?:filas?|rows?|registros?)\b",
+    re.IGNORECASE,
+)
+_MIL_COUNT_RE = re.compile(r"\b(\d+)\s*mil\b", re.IGNORECASE)
+
+# Schema / ProposalGate policy max (keep in sync with PROPOSAL_SCHEMA_V1 + max_limit).
+_TEMPLATE_MAX_LIMIT = 100
+
+# Allowlisted tool names + NL aliases that map to them.
+_ALLOWED_TOOLS = frozenset(_TOOL_ENUM)
+_TOOL_ALIASES = frozenset(
+    {
+        "lookup",
+        "read",
+        "leer",
+        "consulta",
+        "consultar",
+        "query",
+        "buscar",
+        "busca",
+        "trae",
+        "traer",
+        "dame",
+        "show",
+        "get",
+        "list",
+        "lista",
+        "listar",
+        "normalize",
+        "normalizar",
+        "validate",
+        "validar",
+        "valida",
+        "valide",
+        "check",
+        "publish",
+        "publicar",
+    }
+)
+
+# snake_case / API-looking tool tokens (e.g. launch_report).
+_SNAKE_TOOL_RE = re.compile(r"\b([A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)+)\b")
+_TOOL_EQ_RE = re.compile(r"\btool\s*[:=]\s*([A-Za-z_][A-Za-z0-9_]*)\b", re.IGNORECASE)
+_LEADING_TOKEN_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]{1,63})\b")
+
+
+def _pii_ask_without_negation(text: str) -> bool:
+    """True when a PII/sensitive field is requested, not merely negated."""
+    for m in _PII_FIELD_RE.finditer(text):
+        prefix = text[: m.start()]
+        if _NEGATION_TAIL_RE.search(prefix):
+            continue
+        return True
+    return False
+
+
+def _parse_requested_limit(text: str) -> Optional[int]:
+    """Extract an explicit row/limit request; None if the user did not specify one."""
+    m = _LIMIT_EQ_RE.search(text)
+    if m:
+        return int(m.group(1))
+    m = _ROW_COUNT_RE.search(text)
+    if m:
+        n = int(m.group(1))
+        if m.group(2):
+            n *= 1000
+        return n
+    m = _MIL_COUNT_RE.search(text)
+    if m:
+        return int(m.group(1)) * 1000
+    return None
+
+
+def _unknown_tool_name(text: str, resource: str) -> Optional[str]:
+    """Return an unknown explicit tool token, or None if only allowlisted tools appear."""
+    resource_l = (resource or "").lower()
+    # tool=foo
+    for m in _TOOL_EQ_RE.finditer(text):
+        name = m.group(1).lower()
+        if name not in _ALLOWED_TOOLS and name not in _TOOL_ALIASES:
+            return m.group(1)
+    # snake_case API-looking names (launch_report) — not the resource id.
+    for m in _SNAKE_TOOL_RE.finditer(text):
+        name = m.group(1)
+        if name.lower() == resource_l:
+            continue
+        if name.lower() in _ALLOWED_TOOLS or name.lower() in _TOOL_ALIASES:
+            continue
+        return name
+    # Leading token that looks like an API tool (has underscore) and is unknown.
+    lm = _LEADING_TOKEN_RE.match(text)
+    if lm:
+        lead = lm.group(1)
+        if "_" in lead and lead.lower() not in _ALLOWED_TOOLS and lead.lower() not in _TOOL_ALIASES:
+            return lead
+    return None
 
 
 def template_propose(
@@ -360,15 +490,42 @@ def template_propose(
     """Build a Proposal Schema v1 dict from text with allowlisted heuristics.
 
     This is the safe fallback when a grammar backend is unavailable. It does
-    not call an LLM. Destructive / PII-style intents raise ConstrainedDecodeError
-    (fail closed) instead of silently becoming a CRM lookup.
+    not call an LLM. Destructive / PII-style / prose / oversized / unknown-tool
+    intents raise ConstrainedDecodeError (fail closed) instead of silently
+    becoming a CRM lookup that ProposalGate would ACCEPT.
     """
     text = (user_text or "").strip()
     lower = text.lower()
 
-    if _REFUSE_INTENT_RE.search(text):
+    if _REFUSE_DESTRUCTIVE_RE.search(text):
         raise ConstrainedDecodeError(
-            "template refused intent (delete/shell/exec/email/notes/PII); fail closed"
+            "template refused intent (delete/shell/exec/command); fail closed"
+        )
+    if _REFUSE_PROSE_RE.search(text):
+        raise ConstrainedDecodeError(
+            "template refused prose/chitchat intent; fail closed"
+        )
+    if _pii_ask_without_negation(text):
+        raise ConstrainedDecodeError(
+            "template refused intent (email/notes/PII request); fail closed"
+        )
+
+    requested_limit = _parse_requested_limit(text)
+    if requested_limit is not None and requested_limit > _TEMPLATE_MAX_LIMIT:
+        raise ConstrainedDecodeError(
+            f"template refused oversized limit {requested_limit} "
+            f"(max {_TEMPLATE_MAX_LIMIT}); fail closed"
+        )
+
+    resource = default_resource
+    m = _RESOURCE_RE.search(text)
+    if m:
+        resource = m.group(1) or m.group(2)
+
+    unknown = _unknown_tool_name(text, resource)
+    if unknown is not None:
+        raise ConstrainedDecodeError(
+            f"template refused unknown tool {unknown!r}; fail closed"
         )
 
     tool = default_tool
@@ -376,19 +533,31 @@ def template_propose(
     action = "read"
     effects = ["read"]
 
-    if any(w in lower for w in ("validate", "validar", "check")):
+    if any(w in lower for w in ("validate", "validar", "valida", "valide", "check")):
         tool, operation, action, effects = "validate", "validate", "validate", ["validate"]
     elif any(w in lower for w in ("normalize", "normalizar")):
         tool, operation, action, effects = "normalize", "normalize", "transform", ["transform"]
     elif any(w in lower for w in ("publish", "publicar")):
         tool, operation, action, effects = "publish", "publish", "publish", ["publish"]
-    elif any(w in lower for w in ("lookup", "read", "leer", "consulta", "query", "buscar")):
+    elif any(
+        w in lower
+        for w in (
+            "lookup",
+            "read",
+            "leer",
+            "consulta",
+            "query",
+            "buscar",
+            "trae",
+            "traer",
+            "dame",
+            "show",
+            "get",
+            "list",
+            "lista",
+        )
+    ):
         tool, operation, action, effects = "lookup", "read", "read", ["read"]
-
-    resource = default_resource
-    m = _RESOURCE_RE.search(text)
-    if m:
-        resource = m.group(1) or m.group(2)
 
     fields: list[str]
     fm = _FIELD_RE.search(text)
@@ -404,6 +573,14 @@ def template_propose(
     if sm:
         arguments["status"] = sm.group(1)
 
+    limit = int(requested_limit) if requested_limit is not None else int(default_limit)
+    if limit < 1:
+        raise ConstrainedDecodeError("template refused non-positive limit; fail closed")
+    if limit > _TEMPLATE_MAX_LIMIT:
+        raise ConstrainedDecodeError(
+            f"template refused limit {limit} > {_TEMPLATE_MAX_LIMIT}; fail closed"
+        )
+
     proposal = {
         "schema_version": 1,
         "tool": tool,
@@ -411,7 +588,7 @@ def template_propose(
         "action": action,
         "resource": resource,
         "fields": fields,
-        "limit": int(default_limit),
+        "limit": limit,
         "arguments": arguments,
         "effects": effects,
         "metadata": {"proposer": "template", "user_text_sha_len": len(text)},
