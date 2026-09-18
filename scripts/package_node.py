@@ -157,7 +157,8 @@ def build(args: argparse.Namespace) -> int:
                                                       # audit looks for, so shipping
                                                       # it would trip its own guard.
                                                       "package_node.py",
-                                                      "push_to_github.sh"))
+                                                      "push_to_github.sh",
+                                                      ".atl", "dist", "build"))
     for pattern in BUNDLE_GLOBS:
         for src in ROOT.glob(pattern):
             dst = bundle / src.relative_to(ROOT)
@@ -276,38 +277,68 @@ def build(args: argparse.Namespace) -> int:
         if rc != 0:
             print("  SMOKE TEST FAILED -- this bundle does not start")
             return rc
-        print("  smoke test: the bundle starts and answers /health")
+        print("  smoke test: the bundle starts and answers /health (on a copy)")
+        post = audit_bundle(bundle)
+        if post:
+            print("  POST-BOOT AUDIT FAILED (the bundle was contaminated):")
+            for problem in post:
+                print(f"    - {problem}")
+            return 1
+        print("  post-boot audit: the shippable bundle is still clean")
     return 0
 
 
 def smoke_test(bundle: pathlib.Path) -> int:
-    """Boot the bundle in its own directory and require a healthy Edge.
+    """Boot a THROWAWAY COPY of the bundle and require a healthy Edge.
 
     The only check that catches a missing file, because a manifest cannot.
+
+    It boots a copy, not the bundle itself, because booting provisions a node:
+    `start_stack.sh` writes `.atl/edge/edge.env` (which holds ATL_MASTER_KEY_HEX)
+    and `.atl/edge/console_token.txt`. The first version of this function booted
+    the bundle in place, so the smoke test quietly planted a live master key and
+    console token inside the artifact meant to be handed to a buyer. CI caught it
+    because --verify audits the shipped directory afterwards: exactly the leak the
+    audit exists for, manufactured by its own test. The bundle that ships must
+    never have been run.
     """
     import subprocess
-    import urllib.request
+    import tempfile
 
-    script = (
-        "set -e\n"
-        f"cd {bundle}\n"
-        ". ./node.env\n"
-        "bash scripts/start_stack.sh\n"
-        "sleep 4\n"
-        "curl -sf -o /dev/null -w '%{http_code}' http://127.0.0.1:8790/health\n"
-        "bash scripts/start_stack.sh --stop >/dev/null 2>&1 || true\n"
+    with tempfile.TemporaryDirectory(prefix="atl-smoke-") as tmp:
+        target = pathlib.Path(tmp) / bundle.name
+        shutil.copytree(bundle, target)
+        script = (
+            "set -e\n"
+            f"cd {target}\n"
+            ". ./node.env\n"
+            "bash scripts/start_stack.sh\n"
+            "sleep 4\n"
+            "curl -sf -o /dev/null -w '%{http_code}' http://127.0.0.1:8790/health\n"
+            "bash scripts/start_stack.sh --stop >/dev/null 2>&1 || true\n"
+        )
+        proc = subprocess.run(["bash", "-c", script], capture_output=True,
+                              text=True, timeout=300)
+        body = (proc.stdout or "").strip()
+        if proc.returncode != 0 or not body.endswith("200"):
+            print(f"    exit={proc.returncode} health={body[-40:]!r}")
+            for line in (proc.stderr or "").splitlines()[-8:]:
+                print(f"    {line}")
+            return 1
+
+    # The copy is gone; prove the original was not touched by booting it.
+    residue = sorted(
+        str(path.relative_to(bundle))
+        for path in bundle.rglob("*")
+        if path.is_file() and (
+            path.name in FORBIDDEN_NAMES or ".atl" in path.parts
+        )
     )
-    proc = subprocess.run(["bash", "-c", script], capture_output=True, text=True, timeout=180)
-    body = (proc.stdout or "").strip()
-    if proc.returncode != 0 or not body.endswith("200"):
-        print(f"    exit={proc.returncode} health={body[-40:]!r}")
-        for line in (proc.stderr or "").splitlines()[-8:]:
-            print(f"    {line}")
+    if residue:
+        print("    the smoke test contaminated the shippable bundle:")
+        for item in residue:
+            print(f"      - {item}")
         return 1
-    try:
-        del urllib.request  # noqa: B018 - only imported to keep intent obvious
-    except Exception:  # noqa: BLE001
-        pass
     return 0
 
 

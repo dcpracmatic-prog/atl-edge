@@ -1,6 +1,6 @@
 {
-  "started": "2026-09-18T21:59:49Z",
-  "finished": "2026-09-18T21:59:50Z",
+  "started": "2026-09-18T22:02:08Z",
+  "finished": "2026-09-18T22:02:08Z",
   "summary": {
     "total": 21,
     "blocked": 19,
@@ -58,7 +58,7 @@
       "blocked": false,
       "oracle_signature": "d7baf549dfb4",
       "notes": "baseline",
-      "duration_ms": 3.573
+      "duration_ms": 3.598
     },
     {
       "attack_id": "RT1",
@@ -72,7 +72,7 @@
       "blocked": false,
       "oracle_signature": "82a09b27dbad",
       "notes": "direct-dataplane-issue",
-      "duration_ms": 0.861
+      "duration_ms": 0.913
     },
     {
       "attack_id": "RT2",
@@ -86,7 +86,7 @@
       "blocked": true,
       "oracle_signature": "2a57a46daef7",
       "notes": "morph-or-policy",
-      "duration_ms": 0.418
+      "duration_ms": 0.49
     },
     {
       "attack_id": "RT3",
@@ -100,7 +100,7 @@
       "blocked": true,
       "oracle_signature": "2a57a46daef7",
       "notes": "mutation-blocked",
-      "duration_ms": 0.456
+      "duration_ms": 0.492
     },
     {
       "attack_id": "RT4",
@@ -114,7 +114,7 @@
       "blocked": true,
       "oracle_signature": "2a57a46daef7",
       "notes": "data-auth",
-      "duration_ms": 0.478
+      "duration_ms": 0.569
     },
     {
       "attack_id": "RT5",
@@ -128,7 +128,7 @@
       "blocked": true,
       "oracle_signature": "2a57a46daef7",
       "notes": "data-auth",
-      "duration_ms": 0.399
+      "duration_ms": 0.501
     },
     {
       "attack_id": "RT6",
@@ -142,7 +142,7 @@
       "blocked": true,
       "oracle_signature": "2a57a46daef7",
       "notes": "license",
-      "duration_ms": 0.299
+      "duration_ms": 0.35
     },
     {
       "attack_id": "RT7",
@@ -156,7 +156,7 @@
       "blocked": true,
       "oracle_signature": "2a57a46daef7",
       "notes": "construct-denied",
-      "duration_ms": 0.27
+      "duration_ms": 0.383
     },
     {
       "attack_id": "RT8",
@@ -170,7 +170,7 @@
       "blocked": true,
       "oracle_signature": "2a57a46daef7",
       "notes": "construct-denied",
-      "duration_ms": 0.287
+      "duration_ms": 0.461
     },
     {
       "attack_id": "RT9",
@@ -184,7 +184,7 @@
       "blocked": true,
       "oracle_signature": "2a57a46daef7",
       "notes": "dup",
-      "duration_ms": 0.738
+      "duration_ms": 1.798
     },
     {
       "attack_id": "RT10",
@@ -198,7 +198,7 @@
       "blocked": true,
       "oracle_signature": "2a57a46daef7",
       "notes": "successes=1",
-      "duration_ms": 51.957
+      "duration_ms": 53.162
     },
     {
       "attack_id": "RT11",
@@ -212,7 +212,7 @@
       "blocked": true,
       "oracle_signature": "1c56af19bb72",
       "notes": "atlp-node",
-      "duration_ms": 1.123
+      "duration_ms": 1.112
     },
     {
       "attack_id": "RT12",
@@ -226,7 +226,7 @@
       "blocked": true,
       "oracle_signature": "1c56af19bb72",
       "notes": "replay-blocked",
-      "duration_ms": 0.885
+      "duration_ms": 0.969
     },
     {
       "attack_id": "RT13",
@@ -240,7 +240,7 @@
       "blocked": true,
       "oracle_signature": "2a57a46daef7",
       "notes": "fault",
-      "duration_ms": 0.368
+      "duration_ms": 0.439
     },
     {
       "attack_id": "RT14",
@@ -254,7 +254,7 @@
       "blocked": true,
       "oracle_signature": "2a57a46daef7",
       "notes": "comp",
-      "duration_ms": 0.455
+      "duration_ms": 0.562
     },
     {
       "attack_id": "RT15",
@@ -268,7 +268,7 @@
       "blocked": true,
       "oracle_signature": "2a57a46daef7",
       "notes": "comp",
-      "duration_ms": 0.534
+      "duration_ms": 0.486
     },
     {
       "attack_id": "RT16",
@@ -282,7 +282,7 @@
       "blocked": true,
       "oracle_signature": "d511817c6599",
       "notes": "harness-exception",
-      "duration_ms": 17.202
+      "duration_ms": 17.185
     },
     {
       "attack_id": "RT17",
@@ -310,7 +310,7 @@
       "blocked": true,
       "oracle_signature": "8a1448713563",
       "notes": "slow-drip-deadline",
-      "duration_ms": 400.793
+      "duration_ms": 400.999
     },
     {
       "attack_id": "RT19",
@@ -324,7 +324,7 @@
       "blocked": true,
       "oracle_signature": "50f4de30c92d",
       "notes": "egress-tools-all-rejected:17",
-      "duration_ms": 3.165
+      "duration_ms": 3.552
     },
     {
       "attack_id": "RT20",
@@ -338,7 +338,7 @@
       "blocked": true,
       "oracle_signature": "50f4de30c92d",
       "notes": "no-egress-client:8files/32modules",
-      "duration_ms": 24.945
+      "duration_ms": 23.436
     }
   ]
 }

@@ -99,6 +99,10 @@ no es esto.
 ## 3. Qué se instala
 
 - `start_stack.sh` — Edge y consola en loopback, una orden.
+- El paquete se construye con `scripts/package_node.py`, que **arranca el bundle
+  antes de declararlo entregable** (`--smoke-test`) y se niega a enviarlo si la
+  licencia abre en otro nodo. La clave que firma licencias queda **fuera** del
+  bundle; el comprador no puede emitir licencias, y el empaquetador no viaja.
 - Imagen Docker equivalente (`docker/`), probada en CI.
 - **Licencia de nodo**, no de token: un entitlement firmado Ed25519 y ligado a
   un `node_id`.
@@ -115,10 +119,11 @@ Verificable: `python testbench/node_licence_selftest.py`.
 Sin creernos nada, en su máquina:
 
 ```bash
-bash scripts/validate_all.sh                              # 11 etapas
+bash scripts/validate_all.sh                              # 12 etapas
 python testbench/run_testbench.py --require-full          # batería adversarial
-python testbench/red_team_bypass_v1.py --require-clean    # red-team
+python testbench/redteam_bypass_v1.py --require-clean    # red-team
 python testbench/node_licence_selftest.py                 # licencia de nodo
+python scripts/package_node.py --verify dist/<su-node-id>  # el bundle recibido
 python testbench/console_governance_selftest.py           # el recibo visible
 python scripts/check_egress_invariant.py --self-test      # el nodo no llama afuera
 python scripts/check_mcp_surface.py --self-test           # tres herramientas

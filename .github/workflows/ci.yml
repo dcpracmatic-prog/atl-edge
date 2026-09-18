@@ -599,6 +599,12 @@ jobs:
             echo "a private key was shipped inside the bundle"; exit 1
           fi
           echo "signing key is outside the bundle, as designed"
+      - name: The docs must not promise a command that does not exist
+        run: |
+          # The annex told the buyer to run testbench/red_team_bypass_v1.py.
+          # The file is redteam_bypass_v1.py. Nothing failed because nothing
+          # checked -- in the one document whose point is "run it yourself".
+          python scripts/check_docs_commands.py --self-test
       - name: Upload the bundle manifest
         if: always()
         uses: actions/upload-artifact@v4
