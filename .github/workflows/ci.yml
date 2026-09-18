@@ -21,8 +21,8 @@ env:
   PYTHONPATH: .
   # The wheel does not ship cpp/, so the C++ jobs build from a source checkout of
   # the same pinned tag. Keep this in lockstep with requirements.txt and build.sh.
-  STP_TAG: v0.10.3
-  STP_SRC: third_party/Smart-Token-Prod-v0.10.3
+  STP_TAG: v0.10.4
+  STP_SRC: third_party/Smart-Token-Prod-v0.10.4
   PIP_INDEX_URL: https://pypi.org/simple
   PIP_TRUSTED_HOST: "pypi.org files.pythonhosted.org"
 
@@ -182,13 +182,13 @@ jobs:
           test -f "$STP_SRC/cpp/friction_core.cpp"
 
       - name: Build friction core with ASan+UBSan
-        working-directory: third_party/Smart-Token-Prod-v0.10.3/cpp
+        working-directory: third_party/Smart-Token-Prod-v0.10.4/cpp
         run: |
           # Shared lib + standalone demo, both instrumented.
           # Note: loading an ASan .so into a non-instrumented Python process
           # via ctypes is unsupported and aborts; we exercise the core via
           # the linked friction_demo binary instead.
-          # The v0.10.3 Makefile exposes libfriction.so / demo / all / clean —
+          # The v0.10.4 Makefile exposes libfriction.so / demo / all / clean —
           # there is no `asan` target, so the instrumentation is passed in.
           make clean
           make CXXFLAGS="-std=c++17 -O1 -Wall -Wextra -fPIC -fno-omit-frame-pointer -g -fsanitize=address,undefined" \
@@ -196,7 +196,7 @@ jobs:
           test -x ./friction_demo
 
       - name: Run friction_demo under ASan/UBSan
-        working-directory: third_party/Smart-Token-Prod-v0.10.3/cpp
+        working-directory: third_party/Smart-Token-Prod-v0.10.4/cpp
         env:
           ASAN_OPTIONS: abort_on_error=1:detect_leaks=1:symbolize=1
           UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1

@@ -7,7 +7,7 @@ La **visión de producto** (qué es, qué resuelve, fundamentos, capacidades) es
 | | |
 |--|--|
 | **Línea** | ATL Edge SmartToken Hardened v2 |
-| **SmartTokenProd** | 0.10.3, instalado desde `git+https://github.com/dcpracmatic-prog/Smart-Token-Prod.git@v0.10.3` (Argon2id + binding AES ↔ master_secret ↔ public_label + lock por inodo + DENIED opaco) |
+| **SmartTokenProd** | 0.10.3, instalado desde `git+https://github.com/dcpracmatic-prog/Smart-Token-Prod.git@v0.10.4` (Argon2id + binding AES ↔ master_secret ↔ public_label + lock por inodo + DENIED opaco) |
 | **Tronco** | https://github.com/dcpracmatic-prog/atl-edge-smarttoken-hardened |
 | **Licencia** | Elastic License 2.0 — [LICENSE](LICENSE), [NOTICE](NOTICE) |
 
@@ -86,7 +86,7 @@ Properties enforced by the integrated stack (**SmartTokenProd v0.10.3**):
 - The ML-KEM secret key never travels inside the `.stok` file; it is written only to a sibling `.stok.key`.
 - Failed opens advance a sequential friction state (warning → key mutation → CPU tarpit) stored inside the `.stok` and covered by a header HMAC keyed by `master_secret` (**file-local** persistence — not a distributed lock across workers).
 - Friction slows **online** `open_*` attempts; it does **not** replace Argon2id for offline guessing against the `.stok` alone.
-- The native friction core (`libfriction.so`) is optional; a pure-Python backend is used when the library is absent. Python and C++ backends match on friction state and `working_key` after the 2nd failure (mutation path). `pqcrypto` is required for SmartTokenProd itself.
+- The native friction core (`libfriction.so`) is optional; a pure-Python backend is used when the library is absent. Python and C++ backends match on friction state and `working_key` after the 2nd failure (mutation path) — genuinely so only since 0.10.4: before that an undefined shift in the C++ `fib(n)` encoder made the two diverge, and no test covered it (see `docs/THREAT_MODEL.md`, "Native friction parity"). `pqcrypto` is required for SmartTokenProd itself.
 - If `pqcrypto` is not installed the module reports `is_available() == False` and raises a clear error; it never falls back to a weaker crypto path.
 - **Format note (rechecked against 0.10.3):** there is no separate legacy verifier and no stored `kdf_salt` any more. Every open pays one Argon2id whose 16-byte salt is derived from `stok_id` (`sha256(stok_id || "|eq-argon2|v1")[:16]`), so even an old artifact gets a per-artifact salt and the old "weak offline" caveat no longer applies to the KDF. What *does* still differ: artifacts with `binding_version == 1` carry no `friction_mac`, so their friction snapshot is unauthenticated and `info["friction_mac_ok"]` comes back `None` instead of `True`. Re-protect those to get snapshot integrity.
 

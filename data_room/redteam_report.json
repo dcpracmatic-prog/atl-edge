@@ -1,6 +1,6 @@
 {
-  "started": "2026-09-18T12:23:54Z",
-  "finished": "2026-09-18T12:23:55Z",
+  "started": "2026-09-18T17:59:09Z",
+  "finished": "2026-09-18T17:59:09Z",
   "summary": {
     "total": 19,
     "blocked": 17,
@@ -54,7 +54,7 @@
       "blocked": false,
       "oracle_signature": "d7baf549dfb4",
       "notes": "baseline",
-      "duration_ms": 3.39
+      "duration_ms": 6.738
     },
     {
       "attack_id": "RT1",
@@ -68,7 +68,7 @@
       "blocked": false,
       "oracle_signature": "82a09b27dbad",
       "notes": "direct-dataplane-issue",
-      "duration_ms": 0.888
+      "duration_ms": 0.776
     },
     {
       "attack_id": "RT2",
@@ -82,7 +82,7 @@
       "blocked": true,
       "oracle_signature": "2a57a46daef7",
       "notes": "morph-or-policy",
-      "duration_ms": 0.321
+      "duration_ms": 0.332
     },
     {
       "attack_id": "RT3",
@@ -96,7 +96,7 @@
       "blocked": true,
       "oracle_signature": "2a57a46daef7",
       "notes": "mutation-blocked",
-      "duration_ms": 0.397
+      "duration_ms": 0.377
     },
     {
       "attack_id": "RT4",
@@ -110,7 +110,7 @@
       "blocked": true,
       "oracle_signature": "2a57a46daef7",
       "notes": "data-auth",
-      "duration_ms": 0.385
+      "duration_ms": 0.39
     },
     {
       "attack_id": "RT5",
@@ -124,7 +124,7 @@
       "blocked": true,
       "oracle_signature": "2a57a46daef7",
       "notes": "data-auth",
-      "duration_ms": 0.306
+      "duration_ms": 0.309
     },
     {
       "attack_id": "RT6",
@@ -138,7 +138,7 @@
       "blocked": true,
       "oracle_signature": "2a57a46daef7",
       "notes": "license",
-      "duration_ms": 0.189
+      "duration_ms": 0.206
     },
     {
       "attack_id": "RT7",
@@ -152,7 +152,7 @@
       "blocked": true,
       "oracle_signature": "2a57a46daef7",
       "notes": "construct-denied",
-      "duration_ms": 0.154
+      "duration_ms": 0.177
     },
     {
       "attack_id": "RT8",
@@ -166,7 +166,7 @@
       "blocked": true,
       "oracle_signature": "2a57a46daef7",
       "notes": "construct-denied",
-      "duration_ms": 0.149
+      "duration_ms": 0.172
     },
     {
       "attack_id": "RT9",
@@ -180,7 +180,7 @@
       "blocked": true,
       "oracle_signature": "2a57a46daef7",
       "notes": "dup",
-      "duration_ms": 0.618
+      "duration_ms": 0.67
     },
     {
       "attack_id": "RT10",
@@ -194,7 +194,7 @@
       "blocked": true,
       "oracle_signature": "2a57a46daef7",
       "notes": "successes=1",
-      "duration_ms": 52.052
+      "duration_ms": 52.379
     },
     {
       "attack_id": "RT11",
@@ -208,7 +208,7 @@
       "blocked": true,
       "oracle_signature": "1c56af19bb72",
       "notes": "atlp-node",
-      "duration_ms": 1.205
+      "duration_ms": 1.167
     },
     {
       "attack_id": "RT12",
@@ -222,7 +222,7 @@
       "blocked": true,
       "oracle_signature": "1c56af19bb72",
       "notes": "replay-blocked",
-      "duration_ms": 0.902
+      "duration_ms": 0.908
     },
     {
       "attack_id": "RT13",
@@ -236,7 +236,7 @@
       "blocked": true,
       "oracle_signature": "2a57a46daef7",
       "notes": "fault",
-      "duration_ms": 0.299
+      "duration_ms": 0.342
     },
     {
       "attack_id": "RT14",
@@ -250,7 +250,7 @@
       "blocked": true,
       "oracle_signature": "2a57a46daef7",
       "notes": "comp",
-      "duration_ms": 0.333
+      "duration_ms": 0.375
     },
     {
       "attack_id": "RT15",
@@ -264,7 +264,7 @@
       "blocked": true,
       "oracle_signature": "2a57a46daef7",
       "notes": "comp",
-      "duration_ms": 0.361
+      "duration_ms": 0.357
     },
     {
       "attack_id": "RT16",
@@ -292,7 +292,7 @@
       "blocked": true,
       "oracle_signature": "d511817c6599",
       "notes": "harness-exception",
-      "duration_ms": 0.02
+      "duration_ms": 0.008
     },
     {
       "attack_id": "RT18",
@@ -306,7 +306,7 @@
       "blocked": true,
       "oracle_signature": "8a1448713563",
       "notes": "slow-drip-deadline",
-      "duration_ms": 401.091
+      "duration_ms": 401.109
     }
   ]
 }

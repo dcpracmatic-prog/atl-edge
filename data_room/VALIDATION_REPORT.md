@@ -1,7 +1,7 @@
 # Validation Report — ATL Edge SmartToken Integrated Hardened
 
-**Generated (UTC):** 2026-09-18T12:26:43Z
-**Commit:** `7fa8b6e4713dc03f05e1b897ab1066854dcbef1b` (branch `chore/mvp-day1-secret-hygiene`, describe `7fa8b6e-dirty`)
+**Generated (UTC):** 2026-09-18T18:00:30Z
+**Commit:** `167c720f61b6f95b5e5559f2cd94cbf44d2ec841` (branch `chore/mvp-day1-secret-hygiene`, describe `167c720-dirty`)
 **Working tree:** DIRTY — regenerate from a clean checkout before shipping
 **Purpose:** Evidence package for technical due diligence / data room.
 
@@ -16,10 +16,10 @@ directory. Do not hand-edit: rerun the commands in that script's docstring.
 | `--require-full` | **PASS** |
 | pqcrypto | True |
 | Native friction (`libfriction.so`) | True |
-| SmartTokenProd version | 0.10.3 |
+| SmartTokenProd version | 0.10.4 |
 | ATLP data plane (`src/data_plane.py`) | 25014 bytes — AES-256-GCM |
-| Protect p50 (64 KiB artifact) | 113.711 ms |
-| Open legitimate p50 | 113.298 ms |
+| Protect p50 (64 KiB artifact) | 118.768 ms |
+| Open legitimate p50 | 117.761 ms |
 
 Performance figures are measured on the generating host
 (Linux x86_64, Python 3.14.3) and

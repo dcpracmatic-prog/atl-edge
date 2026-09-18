@@ -1,12 +1,12 @@
 {
-  "started_at": "2026-09-18T12:23:39Z",
-  "finished_at": "2026-09-18T12:23:42Z",
+  "started_at": "2026-09-18T17:59:05Z",
+  "finished_at": "2026-09-18T17:59:09Z",
   "environment": {
     "smart_token_prod_importable": true,
     "pqcrypto": true,
     "cryptography": true,
     "native_friction": true,
-    "version": "0.10.3",
+    "version": "0.10.4",
     "error": null
   },
   "summary": {
@@ -24,14 +24,14 @@
       "status": "PASS",
       "detail": "",
       "evidence": {
-        "real_key_prefix": "8425ee705cb4722f",
-        "attacker_key_prefix": "c693d0e515e5f202",
-        "unbound_key_prefix": "2ea39ab8d30f1194",
+        "real_key_prefix": "65d9906c22ed7148",
+        "attacker_key_prefix": "b3ce20cf2b7d560f",
+        "unbound_key_prefix": "86d0620b38f089df",
         "wrong_master_error": "InvalidTag",
         "unbound_error": "InvalidTag",
         "legitimate_recover_ok": true
       },
-      "duration_ms": 1.1925529997824924
+      "duration_ms": 1.1767949981731363
     },
     {
       "id": "A6",
@@ -43,7 +43,7 @@
         "error": "InvalidTag",
         "bound_eq_unbound": false
       },
-      "duration_ms": 0.020580999262165278
+      "duration_ms": 0.019777002307819203
     },
     {
       "id": "A2",
@@ -58,7 +58,7 @@
         "stok_size": 3777,
         "pass_criteria": "sk_in_serialized_dict == False and key_file_exists"
       },
-      "duration_ms": 151.51259399954142
+      "duration_ms": 124.93044900111272
     },
     {
       "id": "A3",
@@ -77,7 +77,7 @@
           "work_factor_paid"
         ]
       },
-      "duration_ms": 233.69652099972882
+      "duration_ms": 239.94514999867533
     },
     {
       "id": "A4",
@@ -90,7 +90,7 @@
         "status": null,
         "friction_fail_count": null
       },
-      "duration_ms": 114.96819099920685
+      "duration_ms": 116.75279200062505
     },
     {
       "id": "A5",
@@ -102,7 +102,7 @@
         "status": "DENIED",
         "opaque": true
       },
-      "duration_ms": 229.5170950001193
+      "duration_ms": 252.61418700029026
     },
     {
       "id": "A7",
@@ -118,7 +118,7 @@
         "monotonic": true,
         "reached_at_least_3": true
       },
-      "duration_ms": 498.2456549996641
+      "duration_ms": 479.9587059969781
     },
     {
       "id": "A8",
@@ -131,7 +131,7 @@
         "aes_gcm_ok": true,
         "payload_len": 51
       },
-      "duration_ms": 239.4641290002255
+      "duration_ms": 242.83993800054304
     },
     {
       "id": "A9",
@@ -142,7 +142,7 @@
         "material_len": 0,
         "format_version": null
       },
-      "duration_ms": 116.71986999954242
+      "duration_ms": 119.86187500224332
     },
     {
       "id": "A10",
@@ -154,7 +154,7 @@
         "status": "DENIED",
         "opaque": true
       },
-      "duration_ms": 585.6944649995057
+      "duration_ms": 598.5697460018855
     },
     {
       "id": "A11",
@@ -165,7 +165,7 @@
         "plaintext_is_none": true,
         "status": "DENIED"
       },
-      "duration_ms": 232.82903199924476
+      "duration_ms": 236.75463700055843
     },
     {
       "id": "A12",
@@ -176,7 +176,7 @@
         "salt_len": 0,
         "format_version": null
       },
-      "duration_ms": 116.37035300009302
+      "duration_ms": 117.82344699895475
     },
     {
       "id": "A15",
@@ -188,7 +188,7 @@
         "status": "DENIED",
         "opaque": true
       },
-      "duration_ms": 347.5750719999269
+      "duration_ms": 352.3889930002042
     },
     {
       "id": "A18",
@@ -202,7 +202,7 @@
         "plaintext_is_none": true,
         "status": "DENIED"
       },
-      "duration_ms": 232.56372200012265
+      "duration_ms": 261.6464089987858
     },
     {
       "id": "A17",
@@ -213,7 +213,7 @@
         "raised": true,
         "error_type": "ValueError"
       },
-      "duration_ms": 113.83494699930452
+      "duration_ms": 119.10175699813408
     }
   ]
 }

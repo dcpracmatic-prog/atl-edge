@@ -85,6 +85,24 @@ Python and C++ backends are tested for matching `fail_count`, `fib_seed`, and `w
 after the **second** failure (key-mutation path). The C++ encoder for `fib(n)` uses defined
 shifts only (≤ 56 on `uint64_t`), matching `int.to_bytes(16, "big")` in Python.
 
+> **This section used to be wrong, and the fix is worth recording.** Until
+> SmartTokenProd v0.10.4 the C++ encoder shifted a `uint64_t` by up to **120**
+> bits — undefined behaviour. On x86 with gcc the shift count wraps modulo 64,
+> so the high 8 bytes came out as a copy of the low 8 instead of zero, and the
+> native backend derived a **different** `working_key` from the Python reference
+> for identical inputs. Nothing tested it, so the "are tested for matching"
+> claim above was unsupported on any host that loaded `libfriction.so`.
+>
+> It surfaced here because this repo's `native-sanitizers` CI job had been
+> compiling a path that no longer existed after the move off the vendored copy;
+> once the job pointed at real sources again, UBSan reported it on the first
+> run. Fixed upstream in
+> [v0.10.4](https://github.com/dcpracmatic-prog/Smart-Token-Prod) together with
+> `tests/test_native_python_parity.py`, which was confirmed to fail against the
+> pre-fix library before being accepted as a regression test. That suite runs in
+> the upstream job that actually compiles the core, since it skips (correctly)
+> wherever the library is absent.
+
 ## Field minimization (production)
 
 `ATLDataPlaneMVP.production()` and the Edge API set `require_fields=True`.
