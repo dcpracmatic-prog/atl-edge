@@ -11,6 +11,48 @@
 
 ---
 
+## Arranque (tres comandos)
+
+```bash
+pip install -r requirements.txt && bash build.sh   # 1. dependencias + núcleos nativos
+bash scripts/validate_all.sh                       # 2. validar el tronco antes de confiar en él
+bash scripts/start_stack.sh                        # 3. Edge :8790 + consola :8795 en loopback
+```
+
+El paso 3 imprime la URL de la consola y la ruta del token Bearer
+(`.atl/edge/console_token.txt`, modo 0600). Se detiene con
+`bash scripts/start_stack.sh --stop`.
+
+Recorrido de extremo a extremo (propuesta en lenguaje natural acotado → gate →
+sello ATLP → el conector lo abre con la **clave de nodo**, nunca con la master):
+
+```bash
+PYTHONPATH=vendor:. python examples/mvp_demo_run.py
+```
+
+**Límites y estado real de esta versión:** **[iva.md](iva.md)**.
+
+## Alcance de este MVP
+
+Este árbol es un **MVP de laboratorio demostrable**, no un producto certificado.
+Un operador arranca Edge y la consola en loopback, propone en lenguaje natural
+acotado, solo se ejecuta lo autorizado, sale un paquete ATLP con `fields`, y el
+conector lo abre con la clave de nodo.
+
+**Explícitamente fuera de alcance:**
+
+- SSO / identidad corporativa
+- HSM / KMS gestionado (la integración es un stub)
+- Despliegue multi-nodo
+- Pentest externo y certificaciones (SOC 2 y equivalentes)
+- Consola expuesta públicamente sin proxy TLS por delante
+- Postgres en producción (SQLite de referencia basta para el piloto)
+- Datos no sintéticos: la demo usa datos de laboratorio
+
+El siguiente hito ya no es MVP: es un piloto en un nodo real con datos reales.
+
+---
+
 
 ## Operator console (three-process view)
 
