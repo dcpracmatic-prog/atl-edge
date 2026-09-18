@@ -520,6 +520,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+      - name: Native build
+        run: |
+          # This job used to fail with "MORPH library not built": it was authored
+          # without a build step, and the dataset step above failing first hid
+          # it. The sealing path is native, so any job that seals needs this.
+          bash build.sh
       - name: Vocabulary widening did not widen permission
         run: |
           # The proposer learned the inventory column names. This asserts that
@@ -551,6 +557,54 @@ jobs:
         with:
           name: inventory-governance-receipt
           path: /tmp/inventory_receipt.json
+          if-no-files-found: warn
+
+  node-licence:
+    name: Node licence + buyer bundle (boots, and does not travel)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Native build
+        run: bash build.sh
+      - name: A licence bound to one node is refused on another
+        run: |
+          # verify_entitlement() compares node_id only when the entitlement
+          # carries one, so an entitlement signed with an empty node_id verifies
+          # on EVERY node while still reporting max_nodes=1. The Edge refuses it.
+          # Without this job, "licencia de nodo" is a sentence in a PDF.
+          PYTHONPATH=. python testbench/node_licence_selftest.py
+      - name: Build the buyer bundle and BOOT it
+        run: |
+          # A manifest cannot tell you a file is missing. Booting can: the first
+          # version of the bundle audited clean and then died on a missing
+          # deploy_edge.sh, then atlctl.py, then the native sources.
+          PYTHONPATH=. python scripts/package_node.py \
+            --node-id node-ci-01 --org-id org-ci --days 30 \
+            --catalog inventory --out dist --smoke-test
+      - name: Verify the shipped bundle independently
+        run: PYTHONPATH=. python scripts/package_node.py --verify dist/node-ci-01
+      - name: The signing key must NOT be inside the bundle
+        run: |
+          set -e
+          test -f dist/cp_private.pem || { echo "expected the key outside the bundle"; exit 1; }
+          if find dist/node-ci-01 -name '*private*' | grep -q .; then
+            echo "a private key was shipped inside the bundle"; exit 1
+          fi
+          echo "signing key is outside the bundle, as designed"
+      - name: Upload the bundle manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: buyer-bundle-manifest
+          path: dist/node-ci-01/MANIFEST.json
           if-no-files-found: warn
 
   console-governance:

@@ -245,10 +245,24 @@ def default_runtime_from_env() -> EdgeRuntime:
             Path(pub_path).read_bytes(),
             node_id=node_id,
         )
-        # Prefer verified entitlement fields over loose env mirrors
+        # A NODE licence, not a token licence -- and that has to be enforced
+        # here, not assumed. verify_entitlement() compares node_id only when the
+        # entitlement carries one (`if node_id and ent.node_id and ...`), so an
+        # entitlement signed with an empty node_id verifies on EVERY node while
+        # still reporting max_nodes=1. That is a portable site licence wearing a
+        # node licence's label. The Edge therefore refuses an unbound
+        # entitlement outright rather than "binding" it at runtime, because a
+        # runtime binding is not what the control plane signed.
         if not ent.node_id:
-            # bind runtime node to entitlement when CP left node_id empty (should not happen after activate)
-            pass
+            raise RuntimeError(
+                "entitlement carries no node_id: it would verify on any node. "
+                "Re-issue it bound to this node "
+                f"({node_id!r}) with atlctl activate-local."
+            )
+        if ent.node_id != node_id:
+            raise RuntimeError(
+                f"entitlement is bound to node {ent.node_id!r}, this node is {node_id!r}"
+            )
     else:
         ent = Entitlement(
             license_id=os.environ.get("ATL_LICENSE_ID") or ("lic-edge-dev" if allow_dev else ""),
