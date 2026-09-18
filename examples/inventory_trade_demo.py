@@ -49,6 +49,7 @@ from src.inventory_catalog import (  # noqa: E402
     WITHHELD_BY_DESIGN,
     build_inventory_catalog,
     dataset_available,
+    dataset_origin,
     inventory_node_policy,
     load_movements,
     load_positions,
@@ -313,9 +314,13 @@ def main(argv=None) -> int:
         print("  python scripts/fetch_inventory_dataset.py")
         return 2
 
+    origin = dataset_origin()
     positions = load_positions(limit=50)
     movements = load_movements(limit=50)
     print(f"  loaded {len(positions)} inventory positions, {len(movements)} stock movements")
+    print(f"  data origin: {origin}  "
+          + ("(fetched extract, 6,000 movements)" if origin == "fetched"
+             else "(committed CC BY sample, 600 movements -- same source, real rows)"))
     print(f"  a source position row: {json.dumps(positions[0], ensure_ascii=False)}")
     print(f"  a source movement row: {json.dumps(movements[0], ensure_ascii=False)}")
     print("\n  Note both source rows carry unit_price_gbp, and movements carry a real")
@@ -328,6 +333,7 @@ def main(argv=None) -> int:
         "licence": "CC BY 4.0",
         "positions_loaded": len(positions),
         "movements_loaded": len(movements),
+        "origin": origin,
         "position_source_fields": sorted(positions[0].keys()),
         "movement_source_fields": sorted(movements[0].keys()),
     }

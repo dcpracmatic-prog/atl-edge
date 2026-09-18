@@ -89,4 +89,7 @@ third_party/
 #   python scripts/fetch_inventory_dataset.py
 .cache/
 datasets/inventory/*.csv
+# ...but the small attributed extract IS committed, so the minimisation
+# proof runs offline and deterministically. CC BY 4.0 permits this.
+!datasets/inventory/*.sample.csv
 testbench/inventory_receipt.json

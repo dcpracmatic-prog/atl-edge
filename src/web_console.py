@@ -58,6 +58,18 @@ header,section{background:#161b22;border:1px solid #30363d;border-radius:8px;pad
 h1,h2{color:#f0f6fc}input,textarea,button{font:inherit;padding:.55rem;margin:.3rem 0;background:#0d1117;color:#f0f6fc;border:1px solid #30363d;border-radius:5px}
 textarea{width:97%;min-height:10rem}input{width:97%}button{background:#1f6feb;cursor:pointer}
 pre{white-space:pre-wrap;overflow:auto;color:#7ee787}
+.verdict{font:600 20px system-ui;padding:.6rem .9rem;border-radius:6px;margin:.4rem 0;display:inline-block}
+.ok{background:#12301c;color:#3fb950;border:1px solid #3fb950}
+.no{background:#3a1114;color:#f85149;border:1px solid #f85149}
+.grid{display:grid;grid-template-columns:max-content 1fr;gap:.35rem .9rem;margin:.7rem 0;font-size:14px}
+.k{color:#8b949e}.v{color:#f0f6fc;font-family:ui-monospace,monospace}
+.chip{display:inline-block;padding:.15rem .5rem;margin:.1rem .2rem .1rem 0;border-radius:4px;font:13px ui-monospace,monospace}
+.out{background:#12301c;color:#3fb950;border:1px solid #2ea043}
+.held{background:#3a1114;color:#f85149;border:1px solid #6e2226;text-decoration:line-through}
+.bar{height:20px;background:#3a1114;border:1px solid #30363d;border-radius:4px;overflow:hidden;margin:.3rem 0}
+.bar>i{display:block;height:100%;background:#2ea043}
+.scn button{margin:.2rem .3rem .2rem 0;background:#21262d;border:1px solid #30363d}
+.scn button.bad{border-color:#6e2226}
 </style></head><body>
 <header><h1>ATL Edge Operator Console</h1>
 <p>Local control surface. Execution uses the licensed production gate; this console cannot issue licenses.</p></header>
@@ -73,6 +85,18 @@ pre{white-space:pre-wrap;overflow:auto;color:#7ee787}
 <section><h2>Execute proposal</h2>
 <textarea id="payload">{"proposal":{"schema_version":1,"tool":"lookup","operation":"read","resource":"crm","fields":["id","region","status"],"arguments":{}},"records":[{"id":1,"region":"MX","status":"active"}]}</textarea>
 <br><button onclick="execute()">Gate and execute</button></section>
+<section><h2>Governance receipt</h2>
+<p style="opacity:.8;font-size:13px">What actually left the node. The point is not that
+the request worked &mdash; it is that you can see nobody got the rest of the row.</p>
+<div id="receipt"><p style="opacity:.6">Run a request to see the receipt.</p></div>
+<h3 style="font-size:15px;color:#8b949e;margin-top:1.2rem">Demo scenarios</h3>
+<div class="scn">
+<button onclick="scenario('ok')">Legitimate: id, status</button>
+<button class="bad" onclick="scenario('all')">&quot;Give me everything&quot;</button>
+<button class="bad" onclick="scenario('pii')">Grab the sensitive column</button>
+<button class="bad" onclick="scenario('del')">Destructive request</button>
+<button class="bad" onclick="scenario('nofields')">No fields declared</button>
+</div></section>
 <script>
 
 const token=document.getElementById('token'), out=document.getElementById('out');
@@ -82,7 +106,73 @@ async function callApi(path,opts={}){
   const r=await fetch(path,{...opts,headers:{'Authorization':'Bearer '+token.value,'Content-Type':'application/json',...(opts.headers||{})}});
   const x=await r.json(); out.textContent=JSON.stringify(x,null,2); return x;
 }
-function execute(){callApi('/api/work/execute',{method:'POST',body:document.getElementById('payload').value})}
+const rcpt=document.getElementById('receipt');
+function esc(t){return String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function row(k,v){return '<div class="k">'+esc(k)+'</div><div class="v">'+esc(v)+'</div>';}
+function chips(list,cls){return (list&&list.length)?list.map(f=>'<span class="chip '+cls+'">'+esc(f)+'</span>').join(''):'<span style="opacity:.5">none</span>';}
+function showRefused(reason,status){
+  rcpt.innerHTML='<div class="verdict no">REJECTED &mdash; no package issued</div>'
+    +'<div class="grid">'+row('http status',status)+row('reason',reason)
+    +row('fields emitted','none')+row('bytes that left','0')
+    +'</div><p style="color:#f85149;font-size:13px">The business executor did not run. '
+    +'Nothing was read, nothing was sealed.</p>';
+}
+function showReceipt(r){
+  const pct=Number(r.retained_pct||0);  // share of the record WITHHELD
+  rcpt.innerHTML='<div class="verdict ok">ACCEPTED</div>'
+    +'<div class="grid">'
+    +row('request_id',r.request_id)
+    +row('TTL',r.ttl_seconds+' s (expires '+new Date(r.expiry*1000).toISOString().replace('T',' ').slice(0,19)+'Z)')
+    +row('policy_id',r.policy_id)
+    +row('asset / sensitivity',(r.asset_id||'-')+' / '+(r.effective_sensitivity||'-'))
+    +row('protection profile',r.protection_profile||'-')
+    +row('classification gate',r.classification_gate||'not enabled')
+    +row('rows in',r.rows_in)
+    +'</div>'
+    +'<div class="grid"><div class="k">fields emitted</div><div>'+chips(r.fields_emitted,'out')+'</div>'
+    +'<div class="k">fields withheld</div><div>'+chips(r.fields_withheld,'held')+'</div></div>'
+    +'<div class="grid">'
+    +row('record bytes',r.record_bytes.toLocaleString())
+    +row('bytes emitted',r.bytes_emitted.toLocaleString())
+    +row('bytes retained',r.bytes_retained.toLocaleString()+'  ('+pct+'% of the record never left)')
+    +row('sealed package',r.package_bytes.toLocaleString()+' bytes'
+         +(Number(r.package_overhead_pct)>0
+           ? ' (+'+r.package_overhead_pct+'% vs the record — envelope and AEAD tag; '
+             +'minimisation is about fields, not wire size)'
+           : ''))
+    +'</div>'
+    +'<div class="bar"><i style="width:'+Math.max(0,Math.min(100,100-pct))+'%"></i></div>'
+    +'<p style="font-size:13px;opacity:.8">Green = what the agent received. '
+    +'Red = the part of the record that stayed on the node.</p>';
+}
+async function execute(){
+  const body=document.getElementById('payload').value;
+  const r=await fetch('/api/work/execute',{method:'POST',headers:{'Authorization':'Bearer '+token.value,'Content-Type':'application/json'},body});
+  let x={}; try{x=await r.json();}catch(e){}
+  out.textContent=JSON.stringify(x,null,2);
+  if(r.ok&&x.receipt){showReceipt(x.receipt);}
+  else{showRefused((x&&(x.error||x.reason))||'rejected',r.status);}
+  return x;
+}
+const SCN={
+  ok:{proposal:{schema_version:1,tool:'lookup',operation:'read',resource:'crm',fields:['id','status'],arguments:{}},
+      records:[{id:1,region:'MX',status:'active',vip_notes:'confidential',ssn:'000-00-0001'},
+               {id:2,region:'MX',status:'active',vip_notes:'confidential',ssn:'000-00-0002'}]},
+  all:{proposal:{schema_version:1,tool:'lookup',operation:'read',resource:'crm',fields:['id','region','status','vip_notes','ssn'],arguments:{}},
+       records:[{id:1,region:'MX',status:'active',vip_notes:'confidential',ssn:'000-00-0001'}]},
+  pii:{proposal:{schema_version:1,tool:'lookup',operation:'read',resource:'crm',fields:['id','ssn'],arguments:{}},
+       records:[{id:1,region:'MX',status:'active',vip_notes:'confidential',ssn:'000-00-0001'}]},
+  del:{proposal:{schema_version:1,tool:'delete',operation:'delete',resource:'crm',fields:['id'],arguments:{}},
+       records:[{id:1,region:'MX',status:'active',ssn:'000-00-0001'}]},
+  nofields:{proposal:{schema_version:1,tool:'lookup',operation:'read',resource:'crm',fields:[],arguments:{}},
+            records:[{id:1,region:'MX',status:'active',ssn:'000-00-0001'}]}
+};
+function scenario(name){
+  const body=JSON.parse(JSON.stringify(SCN[name]));
+  body.request_id='console-'+name+'-'+Date.now();
+  document.getElementById('payload').value=JSON.stringify(body);
+  return execute();
+}
 async function propose(){const intent=document.getElementById('intent').value; const x=await callApi('/api/work/propose',{method:'POST',body:JSON.stringify({intent,backend:'template'})}); if(x&&x.proposal){const cur=JSON.parse(document.getElementById('payload').value||'{}'); cur.proposal=x.proposal; if(!Array.isArray(cur.records))cur.records=[]; document.getElementById('payload').value=JSON.stringify(cur);}}
 </script></body></html>
 """
@@ -253,12 +343,53 @@ class ConsoleState:
             expiry=issue.header.expiry,
             created_at=issue.header.created_at,
         )
+        # The governance receipt. The operator should not have to read metrics
+        # and infer minimisation: state plainly which fields left, which stayed,
+        # and how much of the record never crossed the boundary.
+        metrics = dict(issue.metrics)
+        source_fields = sorted({k for r in records if isinstance(r, dict) for k in r})
+        emitted = [f for f in fields if f in source_fields] or list(fields)
+        withheld = [f for f in source_fields if f not in set(fields)]
+        raw_chars = int(metrics.get("raw_chars") or 0)
+        emitted_chars = int(metrics.get("predigest_chars") or 0)
         return {
             "ok": True,
             "decision": execution.gate.decision,
             "request_id": request_id,
             "executor_result": execution.executor_result,
-            "metrics": dict(issue.metrics),
+            "metrics": metrics,
+            "receipt": {
+                "decision": "ACCEPTED",
+                "request_id": request_id,
+                "policy_id": issue.header.policy_id,
+                "ttl_seconds": ttl,
+                "expiry": issue.header.expiry,
+                "rows_in": len(records),
+                "fields_requested": list(fields),
+                "fields_emitted": emitted,
+                "fields_withheld": withheld,
+                "source_field_count": len(source_fields),
+                "record_bytes": raw_chars,
+                "bytes_emitted": emitted_chars,
+                "bytes_retained": max(0, raw_chars - emitted_chars),
+                # Share of the RECORD that never crossed the boundary. This is
+                # the minimisation claim, and it is the only ratio the panel
+                # draws.
+                "retained_pct": (round(100.0 * (raw_chars - emitted_chars) / raw_chars, 1)
+                                 if raw_chars > 0 else None),
+                # Sealing overhead, computed here and deliberately NOT drawn.
+                # A sealed package is far LARGER than a two-field row (envelope,
+                # header, AEAD tag), so a bar fed this number would read as
+                # "nothing was withheld" -- the opposite of true. Minimisation
+                # is about which fields left, never about wire size.
+                "package_overhead_pct": (round(100.0 * (entry.package_bytes - raw_chars) / raw_chars, 1)
+                                         if raw_chars > 0 else None),
+                "package_bytes": entry.package_bytes,
+                "asset_id": metrics.get("asset_id"),
+                "effective_sensitivity": metrics.get("effective_sensitivity"),
+                "protection_profile": metrics.get("protection_profile"),
+                "classification_gate": metrics.get("classification_gate"),
+            },
             "outbox": {
                 "package_bytes": entry.package_bytes,
                 "package_sha256": entry.package_sha256,

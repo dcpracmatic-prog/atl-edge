@@ -1,6 +1,6 @@
 {
-  "started_at": "2026-09-18T21:39:02Z",
-  "finished_at": "2026-09-18T21:39:06Z",
+  "started_at": "2026-09-18T21:48:47Z",
+  "finished_at": "2026-09-18T21:48:50Z",
   "environment": {
     "smart_token_prod_importable": true,
     "pqcrypto": true,
@@ -24,14 +24,14 @@
       "status": "PASS",
       "detail": "",
       "evidence": {
-        "real_key_prefix": "eedf239c7db65a1d",
-        "attacker_key_prefix": "3f48ca99cb01a6e7",
-        "unbound_key_prefix": "65d29c490b12a555",
+        "real_key_prefix": "8c7daacefcd00a7b",
+        "attacker_key_prefix": "27eac38e324b12f8",
+        "unbound_key_prefix": "1886990e12690564",
         "wrong_master_error": "InvalidTag",
         "unbound_error": "InvalidTag",
         "legitimate_recover_ok": true
       },
-      "duration_ms": 1.1181179943378083
+      "duration_ms": 0.8885419956641272
     },
     {
       "id": "A6",
@@ -43,7 +43,7 @@
         "error": "InvalidTag",
         "bound_eq_unbound": false
       },
-      "duration_ms": 0.01833200076362118
+      "duration_ms": 0.017962993297260255
     },
     {
       "id": "A2",
@@ -58,7 +58,7 @@
         "stok_size": 3777,
         "pass_criteria": "sk_in_serialized_dict == False and key_file_exists"
       },
-      "duration_ms": 116.13633699744241
+      "duration_ms": 113.58807599754073
     },
     {
       "id": "A3",
@@ -77,7 +77,7 @@
           "work_factor_paid"
         ]
       },
-      "duration_ms": 234.55713799921796
+      "duration_ms": 228.80902500037337
     },
     {
       "id": "A4",
@@ -90,7 +90,7 @@
         "status": null,
         "friction_fail_count": null
       },
-      "duration_ms": 114.50912700092886
+      "duration_ms": 110.08670299634105
     },
     {
       "id": "A5",
@@ -102,7 +102,7 @@
         "status": "DENIED",
         "opaque": true
       },
-      "duration_ms": 235.55738299910445
+      "duration_ms": 225.8725619976758
     },
     {
       "id": "A7",
@@ -118,7 +118,7 @@
         "monotonic": true,
         "reached_at_least_3": true
       },
-      "duration_ms": 466.1751309977262
+      "duration_ms": 453.5094000020763
     },
     {
       "id": "A8",
@@ -131,7 +131,7 @@
         "aes_gcm_ok": true,
         "payload_len": 51
       },
-      "duration_ms": 223.32652299519395
+      "duration_ms": 224.38042599969776
     },
     {
       "id": "A9",
@@ -142,7 +142,7 @@
         "material_len": 0,
         "format_version": null
       },
-      "duration_ms": 117.86038200079929
+      "duration_ms": 115.32699499366572
     },
     {
       "id": "A10",
@@ -154,7 +154,7 @@
         "status": "DENIED",
         "opaque": true
       },
-      "duration_ms": 569.4137500031502
+      "duration_ms": 572.9462020026403
     },
     {
       "id": "A11",
@@ -165,7 +165,7 @@
         "plaintext_is_none": true,
         "status": "DENIED"
       },
-      "duration_ms": 225.27778599760495
+      "duration_ms": 226.8184319982538
     },
     {
       "id": "A12",
@@ -176,7 +176,7 @@
         "salt_len": 0,
         "format_version": null
       },
-      "duration_ms": 122.0521249997546
+      "duration_ms": 110.17371899652062
     },
     {
       "id": "A15",
@@ -188,7 +188,7 @@
         "status": "DENIED",
         "opaque": true
       },
-      "duration_ms": 342.46405299927574
+      "duration_ms": 338.5576119981124
     },
     {
       "id": "A18",
@@ -202,7 +202,7 @@
         "plaintext_is_none": true,
         "status": "DENIED"
       },
-      "duration_ms": 233.31411199615104
+      "duration_ms": 222.3704829957569
     },
     {
       "id": "A17",
@@ -213,7 +213,7 @@
         "raised": true,
         "error_type": "ValueError"
       },
-      "duration_ms": 111.79658300534356
+      "duration_ms": 116.12354399403557
     }
   ]
 }

@@ -3,3 +3,7 @@ cryptography>=41.0
 pqcrypto>=0.3
 numpy>=1.24
 smart-token-prod @ git+https://github.com/dcpracmatic-prog/Smart-Token-Prod.git@v0.10.4
+# Required only by scripts/fetch_inventory_dataset.py to read the source
+# workbook. It was missing here while present in a dev venv, so the
+# dataset jobs passed locally and failed in CI.
+openpyxl>=3.1
