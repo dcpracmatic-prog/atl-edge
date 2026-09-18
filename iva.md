@@ -7,7 +7,7 @@ La **visión de producto** (qué es, qué resuelve, fundamentos, capacidades) es
 | | |
 |--|--|
 | **Línea** | ATL Edge SmartToken Hardened v2 |
-| **SmartTokenProd** | 0.10.2, instalado desde `git+https://github.com/dcpracmatic-prog/Smart-Token-Prod.git@v0.10.2` (Argon2id + binding AES ↔ master_secret + lock por inodo + DENIED opaco) |
+| **SmartTokenProd** | 0.10.3, instalado desde `git+https://github.com/dcpracmatic-prog/Smart-Token-Prod.git@v0.10.3` (Argon2id + binding AES ↔ master_secret ↔ public_label + lock por inodo + DENIED opaco) |
 | **Tronco** | https://github.com/dcpracmatic-prog/atl-edge-smarttoken-hardened |
 | **Licencia** | Elastic License 2.0 — [LICENSE](LICENSE), [NOTICE](NOTICE) |
 
@@ -66,7 +66,7 @@ ATL Edge keeps two complementary cryptographic paths:
 | **ATLP** (canonical) | AES-256-GCM + HKDF per-node key + TTL + anti-replay | Short-lived packages for the premium connector |
 | **SmartTokenProd** (optional) | ML-KEM-768 + AES-256-GCM bound to `master_secret` + sequential friction + `.stok` | Long-lived files that leave the node or require human secret + out-of-band key |
 
-SmartTokenProd is an **installed dependency** (no longer a copy under `vendor/`), pinned in `requirements.txt` to the tag `v0.10.2` of [Smart-Token-Prod](https://github.com/dcpracmatic-prog/Smart-Token-Prod). It is reached through `smart_token_prod.sdk` (re-exported by `smart_token_bridge.py`) and exposed through a thin functional API:
+SmartTokenProd is an **installed dependency** (no longer a copy under `vendor/`), pinned in `requirements.txt` to the tag `v0.10.3` of [Smart-Token-Prod](https://github.com/dcpracmatic-prog/Smart-Token-Prod). It is reached through `smart_token_prod.sdk` (re-exported by `smart_token_bridge.py`) and exposed through a thin functional API:
 
 ```python
 from src.long_lived_protection import (
@@ -79,7 +79,7 @@ if is_available():
     plaintext, info = open_artifact(stok, master_secret=b"...", key_path=key)
 ```
 
-Properties enforced by the integrated stack (**SmartTokenProd v0.10.2**):
+Properties enforced by the integrated stack (**SmartTokenProd v0.10.3**):
 
 - The AES-GCM key is derived from **both** the ML-KEM shared secret **and** the human `master_secret`. Possession of the ML-KEM secret key (`sk`) alone is not sufficient to decrypt.
 - Coherence verifiers (`salt` / `material`) in the `.stok` are derived with **Argon2id** (random `kdf_salt`; defaults `time_cost=2`, `memory_cost=64 MiB`, `parallelism=1`, recorded per artifact in `kdf_params`) so offline dictionary checks against the file pay a **memory-hard** work factor — measured ~113 ms per derivation on the validation host. Use a **high-entropy** `master_secret` (password-manager / random bytes); Argon2id does not make weak passwords safe.
@@ -88,7 +88,7 @@ Properties enforced by the integrated stack (**SmartTokenProd v0.10.2**):
 - Friction slows **online** `open_*` attempts; it does **not** replace Argon2id for offline guessing against the `.stok` alone.
 - The native friction core (`libfriction.so`) is optional; a pure-Python backend is used when the library is absent. Python and C++ backends match on friction state and `working_key` after the 2nd failure (mutation path). `pqcrypto` is required for SmartTokenProd itself.
 - If `pqcrypto` is not installed the module reports `is_available() == False` and raises a clear error; it never falls back to a weaker crypto path.
-- **Format note:** `.stok` files created before v0.4.5 (no `kdf_salt`) still open with a legacy verifier (weak offline); re-protect important artifacts with v0.4.5+.
+- **Format note (rechecked against 0.10.3):** there is no separate legacy verifier and no stored `kdf_salt` any more. Every open pays one Argon2id whose 16-byte salt is derived from `stok_id` (`sha256(stok_id || "|eq-argon2|v1")[:16]`), so even an old artifact gets a per-artifact salt and the old "weak offline" caveat no longer applies to the KDF. What *does* still differ: artifacts with `binding_version == 1` carry no `friction_mac`, so their friction snapshot is unauthenticated and `info["friction_mac_ok"]` comes back `None` instead of `True`. Re-protect those to get snapshot integrity.
 
 Build the optional native friction core together with the rest of the natives:
 
@@ -429,7 +429,7 @@ Verificación: **RT16–RT18** en `testbench/redteam_bypass_v1.py`.
 | **Predigest** | Proyecta filas a `fields` → paquete con la **información mínima útil**. Tope operativo **`max_records=20`** por paquete ATLP. |
 | **ATLP** | Cifra el predigest (AES-GCM, TTL, anti-replay local, clave de nodo). |
 | **Edge API** | Único HTTP al MVP; allowlist de rutas; body acotado + deadline; **tope de concurrencia** (503 si se excede). |
-| **SmartTokenProd v0.10.2** | Archivos de larga duración: ML-KEM + AES ligado a `master_secret` + **Argon2id** + fricción + header MAC + lock por inodo. |
+| **SmartTokenProd v0.10.3** | Archivos de larga duración: ML-KEM + AES ligado a `master_secret` y al `public_label` + **Argon2id** + fricción con `friction_mac` + lock por inodo. |
 
 **Nota:** MORPH valida la *petición*; la minimización de columnas es `fields` + `predigest_records`. En **`ATLDataPlaneMVP.production()`** y en el Edge API, **`fields` es obligatorio** (fail-closed).
 
@@ -438,7 +438,7 @@ Verificación: **RT16–RT18** en `testbench/redteam_bypass_v1.py`.
 | Tema | Estado |
 |------|--------|
 | AES solo con `sk` sin `master_secret` | Cerrado (binding) |
-| Diccionario offline barato en `.stok` **nuevos** | Cerrado (Argon2id memory-hard + `kdf_salt`, v0.10.2) |
+| Diccionario offline barato en `.stok` **nuevos** | Cerrado (Argon2id memory-hard + `kdf_salt`, v0.10.3) |
 | HTTP expone `issue_for_agent` / data plane | Cerrado (RT16) |
 | Content-Length mentiroso / silencio | Cerrado (RT17) |
 | Goteo lento del body | Cerrado (RT18) |
@@ -453,7 +453,7 @@ Verificación: **RT16–RT18** en `testbench/redteam_bypass_v1.py`.
 | Confianza de proceso (RT1) | Mismo proceso + `LocalDataPlane` puede sellar; la frontera de **red** es el Edge API. |
 | Predigest | Sin `fields` solo en modo dev (`require_fields=False`). Producción/Edge **exigen** `fields`. Tope **20 filas**/paquete. |
 | ATLP anti-replay | Caché **in-memory** por proceso (no Redis/DB distribuido). |
-| SmartTokenProd | Fricción **file-local**; requiere `pqcrypto`; `.stok` **legacy** pre-0.4.5 sin KDF sigue siendo débil offline; HSM/KMS es stub de integración. |
+| SmartTokenProd | Fricción **file-local**; requiere `pqcrypto`; `.stok` con `binding_version == 1` no traen `friction_mac`, así que su snapshot de fricción no está autenticado (re-proteja para obtenerlo); HSM/KMS es stub de integración. |
 | HTTP | Body + deadline + **máx. 32 handlers concurrentes**; aún sin anti-slowloris de **headers** ni cuota por IP avanzada. |
 | MORPH | Gate estructural/policy — **no** IAM de usuarios ni parser SQL completo; fuzz del parser C++ recomendado antes de claims más fuertes. |
 | Ops / negocio | Redis multi-instancia de fricción, HSM real, acuerdo comercial más allá de ELv2, auditoría externa: decisión del integrador. |

@@ -1,7 +1,7 @@
 # Validation Report — ATL Edge SmartToken Integrated Hardened
 
-**Generated (UTC):** 2026-09-18T11:26:51Z
-**Commit:** `da5721afe0dbbd5484d211dded98a61020b58301` (branch `chore/mvp-day1-secret-hygiene`, describe `da5721a-dirty`)
+**Generated (UTC):** 2026-09-18T12:26:43Z
+**Commit:** `7fa8b6e4713dc03f05e1b897ab1066854dcbef1b` (branch `chore/mvp-day1-secret-hygiene`, describe `7fa8b6e-dirty`)
 **Working tree:** DIRTY — regenerate from a clean checkout before shipping
 **Purpose:** Evidence package for technical due diligence / data room.
 
@@ -12,14 +12,14 @@ directory. Do not hand-edit: rerun the commands in that script's docstring.
 
 | Check | Result |
 |-------|--------|
-| Adversarial battery | **14/14 PASS**, failed=0, skipped=0 |
+| Adversarial battery | **13/15 PASS**, failed=0, skipped=0, n/a=2 |
 | `--require-full` | **PASS** |
 | pqcrypto | True |
 | Native friction (`libfriction.so`) | True |
-| SmartTokenProd version | 0.4.5 |
+| SmartTokenProd version | 0.10.3 |
 | ATLP data plane (`src/data_plane.py`) | 25014 bytes — AES-256-GCM |
-| Protect p50 (64 KiB artifact) | 37.417 ms |
-| Open legitimate p50 | 37.014 ms |
+| Protect p50 (64 KiB artifact) | 113.711 ms |
+| Open legitimate p50 | 113.298 ms |
 
 Performance figures are measured on the generating host
 (Linux x86_64, Python 3.14.3) and
@@ -35,12 +35,21 @@ are not a hardware claim; re-measure on target hardware.
 - **A5** [PASS] Ciphertext tampering fails closed
 - **A7** [PASS] Friction persistence across opens
 - **A8** [PASS] Legitimate round-trip
-- **A9** [PASS] Coherence/material mismatch fails closed
-- **A10** [PASS] Tampered friction_snapshot fails header MAC
-- **A11** [PASS] Tampered public_label fails header MAC
-- **A12** [PASS] Tampered salt fails header MAC
+- **A9** [N/A] Coherence/material mismatch fails closed
+- **A10** [PASS] Tampered friction_snapshot fails friction MAC
+- **A11** [PASS] Tampered public_label fails closed (AAD rebind)
+- **A12** [N/A] Tampered salt fails closed
 - **A15** [PASS] Mixed .stok A + key B fails closed
+- **A18** [PASS] Self-consistent public_label forgery fails closed
 - **A17** [PASS] Truncated .stok fails closed
+
+**Reading N/A:** a case marked N/A tests a property the current `.stok` format
+does not have by design, so no host could ever turn it green and it is not
+counted as a pass. A9 and A12 target `salt` / `material`, which are deliberately
+empty in format v2 — coherence is a public-view metric, not an authorization
+oracle. A SKIP would mean something different and worse: that this host is
+missing a dependency and the evidence is incomplete. `--require-full` fails on
+SKIP and tolerates N/A, which is why both counts are reported separately above.
 
 ## Execution-boundary red team
 
@@ -71,7 +80,7 @@ Ticked only where a run in this tree evidences the property.
 | A6 | Console loopback by default | start_stack.sh binds 127.0.0.1; public bind needs ATL_CONSOLE_BIND_PUBLIC=1 |
 | A7 | ATLP still AES-GCM (not HMAC-JSON) | wc -c src/data_plane.py + PackageCrypto battery |
 | A8 | fields required in prod | console execute without fields -> 400; edge -> 403 INERT |
-| A9 | SmartToken binding + PBKDF2 | adversarial battery, pqcrypto present |
+| A9 | SmartToken binding + Argon2id | adversarial battery, pqcrypto present |
 | A10 | Fail-closed without master | Edge refuses to start without config (mvp-demo job) |
 | A11 | Connector without provisioning master | MVP demo opens package with ATL_NODE_KEY_HEX, master unset |
 | A12 | Firestore/Gemini absent from data-plane | no GCP credentials in Edge/console compose |

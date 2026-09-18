@@ -44,7 +44,8 @@ projects; verify the exact version you install for production compliance.
 
 ### Vendored / in-tree components
 
-  vendor/smart_token_prod/
+  the `smart_token_prod` package (installed dependency, pinned in
+  requirements.txt; formerly vendored under vendor/smart_token_prod/)
     SmartTokenProd library (source included in this tree).
     Subject to the Elastic License 2.0 of this distribution unless a nested
     license file states otherwise.
@@ -61,7 +62,8 @@ projects; verify the exact version you install for production compliance.
 
 ### Native code and system toolchain
 
-  C/C++ sources under src/, eo_probe/, vendor/smart_token_prod/cpp/
+  C/C++ sources under src/, eo_probe/, and the cpp/ tree fetched by build.sh
+  into third_party/Smart-Token-Prod-<tag>/
     Compiled with a standard GCC/Clang toolchain (GPL-licensed compiler;
     the compiler license does not apply to the output binaries you distribute
     from this project’s own sources).

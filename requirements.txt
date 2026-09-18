@@ -2,4 +2,4 @@ cryptography>=41.0
 # Optional but required for SmartTokenProd long-lived protection (ML-KEM)
 pqcrypto>=0.3
 numpy>=1.24
-smart-token-prod @ git+https://github.com/dcpracmatic-prog/Smart-Token-Prod.git@v0.10.2
+smart-token-prod @ git+https://github.com/dcpracmatic-prog/Smart-Token-Prod.git@v0.10.3

@@ -1,39 +1,39 @@
 {
-  "generated_at": "2026-09-18T11:25:44Z",
-  "smart_token_prod_version": "0.4.5",
+  "generated_at": "2026-09-18T12:26:42Z",
+  "smart_token_prod_version": "0.10.3",
   "native_friction": true,
-  "rss_kb_before": 43924,
-  "rss_kb_after": 47868,
-  "dossier_runtime_s": 2.605,
+  "rss_kb_before": 45344,
+  "rss_kb_after": 558104,
+  "dossier_runtime_s": 8.27,
   "serial": {
     "artifact_bytes": 65536,
     "protect": {
       "n": 15,
-      "mean_ms": 37.665,
-      "p50_ms": 37.417,
-      "p95_ms": 37.601,
-      "max_ms": 41.307
+      "mean_ms": 118.089,
+      "p50_ms": 113.711,
+      "p95_ms": 139.122,
+      "max_ms": 143.46
     },
     "open_legitimate": {
       "n": 15,
-      "mean_ms": 37.041,
-      "p50_ms": 37.014,
-      "p95_ms": 37.197,
-      "max_ms": 37.352
+      "mean_ms": 115.946,
+      "p50_ms": 113.298,
+      "p95_ms": 117.379,
+      "max_ms": 151.368
     },
     "open_forced_failure": {
       "n": 15,
-      "mean_ms": 38.108,
-      "p50_ms": 38.085,
-      "p95_ms": 38.377,
-      "max_ms": 38.398
+      "mean_ms": 119.841,
+      "p50_ms": 115.68,
+      "p95_ms": 123.677,
+      "max_ms": 163.761
     }
   },
   "concurrent_failures": {
     "workers": 8,
     "tasks": 16,
-    "wall_ms": 326.05,
-    "mean_task_ms": 135.367,
-    "max_task_ms": 183.267
+    "wall_ms": 1089.1,
+    "mean_task_ms": 490.616,
+    "max_task_ms": 628.181
   }
 }

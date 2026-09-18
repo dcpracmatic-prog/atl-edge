@@ -1,19 +1,20 @@
 {
-  "started_at": "2026-09-18T11:25:38Z",
-  "finished_at": "2026-09-18T11:25:42Z",
+  "started_at": "2026-09-18T12:23:39Z",
+  "finished_at": "2026-09-18T12:23:42Z",
   "environment": {
     "smart_token_prod_importable": true,
     "pqcrypto": true,
     "cryptography": true,
     "native_friction": true,
-    "version": "0.4.5",
+    "version": "0.10.3",
     "error": null
   },
   "summary": {
-    "passed": 14,
+    "passed": 13,
     "failed": 0,
     "skipped": 0,
-    "total": 14,
+    "not_applicable": 2,
+    "total": 15,
     "ok": true
   },
   "cases": [
@@ -23,14 +24,14 @@
       "status": "PASS",
       "detail": "",
       "evidence": {
-        "real_key_prefix": "7d56216038a1ba29",
-        "attacker_key_prefix": "60a4c02d353ecb6e",
-        "unbound_key_prefix": "e0f9bf49c3035dc8",
+        "real_key_prefix": "8425ee705cb4722f",
+        "attacker_key_prefix": "c693d0e515e5f202",
+        "unbound_key_prefix": "2ea39ab8d30f1194",
         "wrong_master_error": "InvalidTag",
         "unbound_error": "InvalidTag",
         "legitimate_recover_ok": true
       },
-      "duration_ms": 0.8566910000809003
+      "duration_ms": 1.1925529997824924
     },
     {
       "id": "A6",
@@ -42,7 +43,7 @@
         "error": "InvalidTag",
         "bound_eq_unbound": false
       },
-      "duration_ms": 0.01916199994411727
+      "duration_ms": 0.020580999262165278
     },
     {
       "id": "A2",
@@ -54,10 +55,10 @@
         "sk_in_serialized_dict": false,
         "key_file_exists": true,
         "key_file_size": 3231,
-        "stok_size": 3687,
+        "stok_size": 3777,
         "pass_criteria": "sk_in_serialized_dict == False and key_file_exists"
       },
-      "duration_ms": 37.54655399995954
+      "duration_ms": 151.51259399954142
     },
     {
       "id": "A3",
@@ -66,31 +67,30 @@
       "detail": "",
       "evidence": {
         "plaintext_is_none": true,
-        "recoverable": false,
-        "header_mac_ok": false,
-        "error": "header_mac_mismatch",
+        "status": "DENIED",
+        "opaque": true,
         "info_keys": [
-          "error",
-          "friction_before",
-          "header_mac_ok",
+          "binding_version",
+          "hash_iters_paid",
           "path",
-          "recoverable"
+          "status",
+          "work_factor_paid"
         ]
       },
-      "duration_ms": 37.132774000042446
+      "duration_ms": 233.69652099972882
     },
     {
       "id": "A4",
       "title": "Missing sk fails + friction",
       "status": "PASS",
-      "detail": "",
+      "detail": "missing sk fails closed via FileNotFoundError",
       "evidence": {
+        "raised": "FileNotFoundError",
         "plaintext_is_none": true,
-        "recoverable": false,
-        "mlkem_error": "sk no disponible (suministre --key / archivo .stok.key)",
+        "status": null,
         "friction_fail_count": null
       },
-      "duration_ms": 73.56860899994899
+      "duration_ms": 114.96819099920685
     },
     {
       "id": "A5",
@@ -99,11 +99,10 @@
       "detail": "",
       "evidence": {
         "plaintext_is_none": true,
-        "recoverable": false,
-        "aes_gcm_ok": null,
-        "aes_error": null
+        "status": "DENIED",
+        "opaque": true
       },
-      "duration_ms": 37.153788000068744
+      "duration_ms": 229.5170950001193
     },
     {
       "id": "A7",
@@ -119,7 +118,7 @@
         "monotonic": true,
         "reached_at_least_3": true
       },
-      "duration_ms": 1647.221783999953
+      "duration_ms": 498.2456549996641
     },
     {
       "id": "A8",
@@ -132,53 +131,52 @@
         "aes_gcm_ok": true,
         "payload_len": 51
       },
-      "duration_ms": 74.21693800006324
+      "duration_ms": 239.4641290002255
     },
     {
       "id": "A9",
       "title": "Coherence/material mismatch fails closed",
-      "status": "PASS",
-      "detail": "",
+      "status": "N/A",
+      "detail": "material is empty in .stok v2 by design \u2014 coherence is a public-view metric, not an authorization oracle (upstream v0.9). Tampering an empty field proves nothing, so this is skipped rather than reported as a pass.",
       "evidence": {
-        "plaintext_is_none": true,
-        "recoverable": false,
-        "coherence_info": {}
+        "material_len": 0,
+        "format_version": null
       },
-      "duration_ms": 37.42831599993224
+      "duration_ms": 116.71986999954242
     },
     {
       "id": "A10",
-      "title": "Tampered friction_snapshot fails header MAC",
+      "title": "Tampered friction_snapshot fails friction MAC",
       "status": "PASS",
       "detail": "",
       "evidence": {
         "plaintext_is_none": true,
-        "header_mac_ok": false,
-        "error": "header_mac_mismatch"
+        "status": "DENIED",
+        "opaque": true
       },
-      "duration_ms": 1648.2061080000676
+      "duration_ms": 585.6944649995057
     },
     {
       "id": "A11",
-      "title": "Tampered public_label fails header MAC",
+      "title": "Tampered public_label fails closed (AAD rebind)",
       "status": "PASS",
       "detail": "",
       "evidence": {
         "plaintext_is_none": true,
-        "header_mac_ok": false
+        "status": "DENIED"
       },
-      "duration_ms": 36.937893999947846
+      "duration_ms": 232.82903199924476
     },
     {
       "id": "A12",
-      "title": "Tampered salt fails header MAC",
-      "status": "PASS",
-      "detail": "",
+      "title": "Tampered salt fails closed",
+      "status": "N/A",
+      "detail": "salt is empty in .stok v2 by design \u2014 the KDF salt lives in kdf_params and coherence is a public-view metric, not an authorization oracle (upstream v0.9). Tampering an empty field proves nothing, so this is skipped rather than reported as a pass.",
       "evidence": {
-        "plaintext_is_none": true,
-        "header_mac_ok": false
+        "salt_len": 0,
+        "format_version": null
       },
-      "duration_ms": 36.94051699994816
+      "duration_ms": 116.37035300009302
     },
     {
       "id": "A15",
@@ -187,11 +185,24 @@
       "detail": "",
       "evidence": {
         "plaintext_is_none": true,
-        "recoverable": false,
-        "mlkem_ok": true,
-        "aes_gcm_ok": false
+        "status": "DENIED",
+        "opaque": true
       },
-      "duration_ms": 110.31030799995278
+      "duration_ms": 347.5750719999269
+    },
+    {
+      "id": "A18",
+      "title": "Self-consistent public_label forgery fails closed",
+      "status": "PASS",
+      "detail": "",
+      "evidence": {
+        "original_label": "DCP-SMART-PROD",
+        "forged_label": "FORGED-LABEL-A18",
+        "stored_aad_matches_forged_label": true,
+        "plaintext_is_none": true,
+        "status": "DENIED"
+      },
+      "duration_ms": 232.56372200012265
     },
     {
       "id": "A17",
@@ -202,7 +213,7 @@
         "raised": true,
         "error_type": "ValueError"
       },
-      "duration_ms": 36.579544000005626
+      "duration_ms": 113.83494699930452
     }
   ]
 }

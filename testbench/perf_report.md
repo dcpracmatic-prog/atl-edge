@@ -1,24 +1,24 @@
 # SmartTokenProd — Performance Dossier
 
-Generated: `2026-09-15T02:23:45Z`  
-Version: `0.4.4`  
+Generated: `2026-09-18T12:26:57Z`  
+Version: `0.10.3`  
 Native friction core: **yes**
 
 ## Process footprint
 
 | Metric | Value |
 |--------|------:|
-| RSS before (KB) | 40604 |
-| RSS after (KB) | 42556 |
-| Dossier runtime (s) | 0.101 |
+| RSS before (KB) | 45256 |
+| RSS after (KB) | 540612 |
+| Dossier runtime (s) | 8.281 |
 
 ## Serial protect / open (artifact 65536 bytes, n=15)
 
 | Operation | mean (ms) | p50 (ms) | p95 (ms) | max (ms) |
 |-----------|----------:|---------:|---------:|---------:|
-| protect_file | 1.469 | 1.371 | 1.631 | 2.818 |
-| open (legitimate) | 1.147 | 1.109 | 1.379 | 1.512 |
-| open (forced failure + friction) | 1.867 | 1.848 | 2.083 | 2.093 |
+| protect_file | 120.415 | 115.791 | 134.141 | 157.55 |
+| open (legitimate) | 115.865 | 115.235 | 119.28 | 124.612 |
+| open (forced failure + friction) | 118.778 | 116.609 | 124.792 | 136.72 |
 
 ## Concurrent failed opens (tarpit pressure)
 
@@ -26,9 +26,9 @@ Native friction core: **yes**
 |--------|------:|
 | Workers | 8 |
 | Tasks | 16 |
-| Wall clock (ms) | 19.56 |
-| Mean task (ms) | 6.526 |
-| Max task (ms) | 12.39 |
+| Wall clock (ms) | 1088.25 |
+| Mean task (ms) | 501.378 |
+| Max task (ms) | 681.526 |
 
 ## Notes for reviewers
 
@@ -36,5 +36,5 @@ Native friction core: **yes**
   latency on that path is intentional defensive behaviour, not a throughput bug.
 - Measurements are single-host laboratory numbers; they are not an SLA.
 - Multi-worker **shared** friction state requires an external FrictionStore
-  (see \`vendor/smart_token_prod/persistence.py\`); file-local MAC-authenticated
+  (see `smart_token_prod/persistence.py` in the pinned package); file-local MAC-authenticated
   snapshots do not coordinate across processes.

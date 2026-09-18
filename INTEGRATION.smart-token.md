@@ -7,7 +7,7 @@ Este archivo lo escribió `smart-token integrate`. Pasos recomendados:
 Instala el paquete desde git (o editable local):
 
 ```bash
-pip install "smart-token-prod @ git+https://github.com/dcpracmatic-prog/Smart-Token-Prod.git@v0.10.2"
+pip install "smart-token-prod @ git+https://github.com/dcpracmatic-prog/Smart-Token-Prod.git@v0.10.3"
 # o editable:
 # pip install -e /ruta/a/Smart-Token-Prod
 ```
@@ -19,7 +19,7 @@ grupo de deps a mano (no se reescribe TOML a ciegas).
 
 ## 2. Quitar el vendor
 
-Si existe `vendor/smart_token_prod/` (copia antigua / fork):
+Si existe `vendor/smart_token_prod/` (copia antigua / fork) — **en este repo ya no existe, se eliminó en la migración a 0.10.x**:
 
 1. Elimina ese directorio del árbol y del control de versiones.
 2. Deja de exportar `PYTHONPATH=.` (o equivalente) **solo** para STP.

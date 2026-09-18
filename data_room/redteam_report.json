@@ -1,6 +1,6 @@
 {
-  "started": "2026-09-18T11:25:56Z",
-  "finished": "2026-09-18T11:25:56Z",
+  "started": "2026-09-18T12:23:54Z",
+  "finished": "2026-09-18T12:23:55Z",
   "summary": {
     "total": 19,
     "blocked": 17,
@@ -54,7 +54,7 @@
       "blocked": false,
       "oracle_signature": "d7baf549dfb4",
       "notes": "baseline",
-      "duration_ms": 3.022
+      "duration_ms": 3.39
     },
     {
       "attack_id": "RT1",
@@ -68,7 +68,7 @@
       "blocked": false,
       "oracle_signature": "82a09b27dbad",
       "notes": "direct-dataplane-issue",
-      "duration_ms": 0.667
+      "duration_ms": 0.888
     },
     {
       "attack_id": "RT2",
@@ -82,7 +82,7 @@
       "blocked": true,
       "oracle_signature": "2a57a46daef7",
       "notes": "morph-or-policy",
-      "duration_ms": 0.255
+      "duration_ms": 0.321
     },
     {
       "attack_id": "RT3",
@@ -96,7 +96,7 @@
       "blocked": true,
       "oracle_signature": "2a57a46daef7",
       "notes": "mutation-blocked",
-      "duration_ms": 0.325
+      "duration_ms": 0.397
     },
     {
       "attack_id": "RT4",
@@ -110,7 +110,7 @@
       "blocked": true,
       "oracle_signature": "2a57a46daef7",
       "notes": "data-auth",
-      "duration_ms": 0.338
+      "duration_ms": 0.385
     },
     {
       "attack_id": "RT5",
@@ -124,7 +124,7 @@
       "blocked": true,
       "oracle_signature": "2a57a46daef7",
       "notes": "data-auth",
-      "duration_ms": 0.256
+      "duration_ms": 0.306
     },
     {
       "attack_id": "RT6",
@@ -138,7 +138,7 @@
       "blocked": true,
       "oracle_signature": "2a57a46daef7",
       "notes": "license",
-      "duration_ms": 0.152
+      "duration_ms": 0.189
     },
     {
       "attack_id": "RT7",
@@ -152,7 +152,7 @@
       "blocked": true,
       "oracle_signature": "2a57a46daef7",
       "notes": "construct-denied",
-      "duration_ms": 0.131
+      "duration_ms": 0.154
     },
     {
       "attack_id": "RT8",
@@ -166,7 +166,7 @@
       "blocked": true,
       "oracle_signature": "2a57a46daef7",
       "notes": "construct-denied",
-      "duration_ms": 0.126
+      "duration_ms": 0.149
     },
     {
       "attack_id": "RT9",
@@ -180,7 +180,7 @@
       "blocked": true,
       "oracle_signature": "2a57a46daef7",
       "notes": "dup",
-      "duration_ms": 0.615
+      "duration_ms": 0.618
     },
     {
       "attack_id": "RT10",
@@ -194,7 +194,7 @@
       "blocked": true,
       "oracle_signature": "2a57a46daef7",
       "notes": "successes=1",
-      "duration_ms": 51.75
+      "duration_ms": 52.052
     },
     {
       "attack_id": "RT11",
@@ -208,7 +208,7 @@
       "blocked": true,
       "oracle_signature": "1c56af19bb72",
       "notes": "atlp-node",
-      "duration_ms": 0.999
+      "duration_ms": 1.205
     },
     {
       "attack_id": "RT12",
@@ -222,7 +222,7 @@
       "blocked": true,
       "oracle_signature": "1c56af19bb72",
       "notes": "replay-blocked",
-      "duration_ms": 0.71
+      "duration_ms": 0.902
     },
     {
       "attack_id": "RT13",
@@ -236,7 +236,7 @@
       "blocked": true,
       "oracle_signature": "2a57a46daef7",
       "notes": "fault",
-      "duration_ms": 0.246
+      "duration_ms": 0.299
     },
     {
       "attack_id": "RT14",
@@ -250,7 +250,7 @@
       "blocked": true,
       "oracle_signature": "2a57a46daef7",
       "notes": "comp",
-      "duration_ms": 0.293
+      "duration_ms": 0.333
     },
     {
       "attack_id": "RT15",
@@ -264,7 +264,7 @@
       "blocked": true,
       "oracle_signature": "2a57a46daef7",
       "notes": "comp",
-      "duration_ms": 0.303
+      "duration_ms": 0.361
     },
     {
       "attack_id": "RT16",
@@ -278,7 +278,7 @@
       "blocked": true,
       "oracle_signature": "d511817c6599",
       "notes": "harness-exception",
-      "duration_ms": 23.552
+      "duration_ms": 25.634
     },
     {
       "attack_id": "RT17",
@@ -292,7 +292,7 @@
       "blocked": true,
       "oracle_signature": "d511817c6599",
       "notes": "harness-exception",
-      "duration_ms": 0.008
+      "duration_ms": 0.02
     },
     {
       "attack_id": "RT18",
@@ -306,7 +306,7 @@
       "blocked": true,
       "oracle_signature": "8a1448713563",
       "notes": "slow-drip-deadline",
-      "duration_ms": 400.834
+      "duration_ms": 401.091
     }
   ]
 }

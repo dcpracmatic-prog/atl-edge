@@ -63,10 +63,10 @@ from typing import Any, Callable, Dict, List, Optional
 # Path bootstrap (works from repo root or testbench/)
 # ---------------------------------------------------------------------------
 _ROOT = Path(__file__).resolve().parents[1]
-_VENDOR = _ROOT / "vendor"
-for p in (str(_VENDOR), str(_ROOT)):
-    if p not in sys.path:
-        sys.path.insert(0, p)
+# smart_token_prod is an installed dependency now (pinned in requirements.txt);
+# there is no vendor/ copy left to put on sys.path.
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
 
 # ---------------------------------------------------------------------------
 # Pure primitives used even when pqcrypto is absent
@@ -90,7 +90,14 @@ def _derive_aes_key_unbound(shared_secret: bytes,
 class CaseResult:
     id: str
     title: str
-    status: str  # PASS | FAIL | SKIP
+    # PASS | FAIL | SKIP | N/A
+    #   SKIP = this host cannot exercise the case (missing dependency). It is a
+    #          gap in the evidence, so --require-full treats it as a failure.
+    #   N/A  = the property does not exist in this format/version by design, so
+    #          there is nothing to prove here on any host. Reported separately
+    #          because calling it a PASS would be a lie and calling it a SKIP
+    #          would make --require-full permanently unsatisfiable.
+    status: str
     detail: str = ""
     evidence: Dict[str, Any] = field(default_factory=dict)
     duration_ms: float = 0.0
@@ -115,11 +122,16 @@ class BatteryReport:
     def skipped(self) -> int:
         return sum(1 for c in self.cases if c.status == "SKIP")
 
+    @property
+    def not_applicable(self) -> int:
+        return sum(1 for c in self.cases if c.status == "N/A")
+
     def summary(self) -> Dict[str, Any]:
         return {
             "passed": self.passed,
             "failed": self.failed,
             "skipped": self.skipped,
+            "not_applicable": self.not_applicable,
             "total": len(self.cases),
             "ok": self.failed == 0,
         }
@@ -279,6 +291,45 @@ def _full_stack_or_skip() -> Optional[Dict[str, Any]]:
     return None
 
 
+def _fails_closed(pt: Any, info: Dict[str, Any]) -> bool:
+    """Did this open fail closed, under the >=0.10 opaque-DENIED contract?
+
+    Up to 0.4.5 the battery asserted ``info["recoverable"] is False`` or
+    ``info["header_mac_ok"] is False``. Since 0.10 a denied open is deliberately
+    **opaque**: those keys are stripped so the result cannot be used as an
+    oracle for *why* it was refused (see OPAQUE_DENY_KEYS upstream). Asserting on
+    them now silently inverts the test — a correctly denied open returns None for
+    every one of them, which the old expression read as failure.
+
+    So the observable contract is exactly this: no plaintext, and a DENIED
+    status. That is also the only thing an attacker gets to see, which is the
+    property we actually care about.
+    """
+    if pt is not None:
+        return False
+    status = info.get("status") if isinstance(info, dict) else None
+    # Owner-visible paths (reveal_friction=True) may still expose the details;
+    # accept either shape rather than demanding opacity where it is not required.
+    if status == "DENIED":
+        return True
+    return info.get("recoverable") is False or info.get("header_mac_ok") is False
+
+
+def _field_is_persisted(stok: Any, field: str) -> bool:
+    """Is `field` actually carrying bytes in this .stok format version?
+
+    ``salt`` and ``material`` are empty in .stok v2 on purpose: upstream demoted
+    coherence to a public-view metric precisely so it could not act as an
+    authorization oracle. Tampering an empty field is a vacuous test that would
+    "pass" no matter what the library does, so cases that target these fields
+    check this first and SKIP with a reason instead of pretending to prove
+    something. If a future format starts persisting them again, the same cases
+    become real assertions automatically.
+    """
+    value = getattr(stok, field, None)
+    return bool(value)
+
+
 def case_a2_sk_not_in_stok() -> Dict[str, Any]:
     """A2 — Serialized .stok must not contain the ML-KEM secret key."""
     skip = _full_stack_or_skip()
@@ -341,14 +392,14 @@ def case_a3_wrong_master() -> Dict[str, Any]:
             key_path=key_path,
             update_friction=True,
         )
-        # Wrong master cannot verify header_mac (key is derived from master_secret)
-        # and must never return plaintext.
-        ok = pt is None and info.get("recoverable") is False
+        # A wrong master_secret cannot derive the AES key, so it must never
+        # return plaintext. Since 0.10 the refusal is opaque, so the assertion is
+        # "no plaintext + DENIED" rather than a specific failure reason.
+        ok = _fails_closed(pt, info)
         return {
             "plaintext_is_none": pt is None,
-            "recoverable": info.get("recoverable"),
-            "header_mac_ok": info.get("header_mac_ok"),
-            "error": info.get("error"),
+            "status": info.get("status"),
+            "opaque": info.get("recoverable") is None,
             "info_keys": sorted(info.keys()),
             "_status": "PASS" if ok else "FAIL",
             "_detail": "" if ok else "wrong master opened the artifact",
@@ -372,21 +423,36 @@ def case_a4_missing_sk() -> Dict[str, Any]:
         if key_path.is_file():
             key_path.unlink()
 
-        pt, info = open_stok(
-            stok_path,
-            master_secret=b"master-a4",
-            key_path=tmp / "nonexistent.key",
-            update_friction=True,
-        )
+        # >=0.10 surfaces an absent key file as FileNotFoundError from
+        # read_key_file rather than folding it into a DENIED result. Both shapes
+        # are fail-closed; what matters is that no plaintext comes back. A
+        # missing local key file is an operator configuration fault, not an
+        # attacker probe, so raising is arguably the better contract — but the
+        # case has to accept it explicitly instead of crashing the battery.
+        raised = None
+        pt, info = None, {}
+        try:
+            pt, info = open_stok(
+                stok_path,
+                master_secret=b"master-a4",
+                key_path=tmp / "nonexistent.key",
+                update_friction=True,
+            )
+        except FileNotFoundError as e:
+            raised = type(e).__name__
+
         fr = friction_status(stok_path)
-        ok = pt is None and info.get("recoverable") is False
+        ok = raised is not None or _fails_closed(pt, info)
         return {
+            "raised": raised,
             "plaintext_is_none": pt is None,
-            "recoverable": info.get("recoverable"),
-            "mlkem_error": info.get("mlkem_error"),
+            "status": info.get("status"),
             "friction_fail_count": fr.get("fail_count"),
             "_status": "PASS" if ok else "FAIL",
-            "_detail": "" if ok else "missing sk did not fail closed",
+            "_detail": (
+                f"missing sk fails closed via {raised}" if raised
+                else ("" if ok else "missing sk did not fail closed")
+            ),
         }
 
 
@@ -416,12 +482,11 @@ def case_a5_tamper_ciphertext() -> Dict[str, Any]:
             master_secret=b"master-a5",
             key_path=key_path,
         )
-        ok = pt is None and info.get("recoverable") is False
+        ok = _fails_closed(pt, info)
         return {
             "plaintext_is_none": pt is None,
-            "recoverable": info.get("recoverable"),
-            "aes_gcm_ok": info.get("aes_gcm_ok"),
-            "aes_error": info.get("aes_error"),
+            "status": info.get("status"),
+            "opaque": info.get("aes_gcm_ok") is None,
             "_status": "PASS" if ok else "FAIL",
             "_detail": "" if ok else "tampered ciphertext was accepted",
         }
@@ -516,7 +581,20 @@ def case_a9_coherence_mismatch() -> Dict[str, Any]:
         stok_path, key_path = protect_file(src, master_secret=b"master-a9")
 
         stok = read_stok(stok_path)
-        # Corrupt material so coherence check fails
+        if not _field_is_persisted(stok, "material"):
+            return {
+                "_status": "N/A",
+                "_detail": (
+                    "material is empty in .stok v2 by design — coherence is a "
+                    "public-view metric, not an authorization oracle (upstream "
+                    "v0.9). Tampering an empty field proves nothing, so this is "
+                    "skipped rather than reported as a pass."
+                ),
+                "material_len": len(stok.material or b""),
+                "format_version": getattr(stok, "version", None),
+            }
+
+        # Format persists material again: hold it to fail-closed.
         stok.material = os.urandom(len(stok.material))
         write_stok(stok, stok_path)
 
@@ -525,15 +603,10 @@ def case_a9_coherence_mismatch() -> Dict[str, Any]:
             master_secret=b"master-a9",
             key_path=key_path,
         )
-        ok = pt is None and info.get("recoverable") is False
+        ok = _fails_closed(pt, info)
         return {
             "plaintext_is_none": pt is None,
-            "recoverable": info.get("recoverable"),
-            "coherence_info": {
-                k: info.get(k)
-                for k in ("within_window", "master_matches", "H", "delta")
-                if k in info
-            },
+            "status": info.get("status"),
             "_status": "PASS" if ok else "FAIL",
             "_detail": "" if ok else "coherence mismatch did not fail closed",
         }
@@ -580,18 +653,30 @@ def case_a10_tamper_friction_snapshot() -> Dict[str, Any]:
         write_stok(stok, stok_path)
 
         pt, info = open_stok(stok_path, master_secret=b"master-a10", key_path=key_path)
-        ok = pt is None and info.get("header_mac_ok") is False
+        # friction_mac (HMAC over the on-disk snapshot + pk + ct) is what catches
+        # this now; the old header_mac is gone. The refusal is opaque either way.
+        ok = _fails_closed(pt, info)
         return {
             "plaintext_is_none": pt is None,
-            "header_mac_ok": info.get("header_mac_ok"),
-            "error": info.get("error"),
+            "status": info.get("status"),
+            "opaque": info.get("friction_mac_ok") is None,
             "_status": "PASS" if ok else "FAIL",
             "_detail": "" if ok else "forged friction_snapshot was accepted",
         }
 
 
 def case_a11_tamper_metadata_label() -> Dict[str, Any]:
-    """A11 — Tampering public_label must invalidate header MAC."""
+    """A11 — Tampering public_label must fail closed.
+
+    0.4.5 caught this with `header_mac`, which covered public_label. That field is
+    gone in v2. Under >=0.10.3 the property is enforced cryptographically
+    instead: the AEAD associated data is derived from public_label and recomputed
+    from disk at open time, so a forged label yields InvalidTag.
+
+    This case is the one that found the 0.10.2 P0 (upstream v0.10.3): between
+    0.4.5 and 0.10.2 the stored `aad` was passed to the AEAD verbatim, so a
+    forged public_label opened cleanly with status=OPEN.
+    """
     skip = _full_stack_or_skip()
     if skip:
         return skip
@@ -607,10 +692,10 @@ def case_a11_tamper_metadata_label() -> Dict[str, Any]:
         stok.public_label = b"TAMPERED-LABEL"
         write_stok(stok, stok_path)
         pt, info = open_stok(stok_path, master_secret=b"master-a11", key_path=key_path)
-        ok = pt is None and info.get("header_mac_ok") is False
+        ok = _fails_closed(pt, info)
         return {
             "plaintext_is_none": pt is None,
-            "header_mac_ok": info.get("header_mac_ok"),
+            "status": info.get("status"),
             "_status": "PASS" if ok else "FAIL",
             "_detail": "" if ok else "tampered public_label accepted",
         }
@@ -633,12 +718,11 @@ def case_a15_mix_stok_and_key() -> Dict[str, Any]:
 
         # Mix: open A with key B (and master A — still must fail on mlkem/aes)
         pt, info = open_stok(stok_a, master_secret=b"master-A", key_path=key_b)
-        ok = pt is None and info.get("recoverable") is False
+        ok = _fails_closed(pt, info)
         return {
             "plaintext_is_none": pt is None,
-            "recoverable": info.get("recoverable"),
-            "mlkem_ok": info.get("mlkem_ok"),
-            "aes_gcm_ok": info.get("aes_gcm_ok"),
+            "status": info.get("status"),
+            "opaque": info.get("aes_gcm_ok") is None,
             "_status": "PASS" if ok else "FAIL",
             "_detail": "" if ok else "mixed stok/key pair was accepted",
         }
@@ -658,15 +742,82 @@ def case_a12_tamper_salt() -> Dict[str, Any]:
         src = tmp / "doc.bin"; src.write_bytes(b"payload-a12")
         stok_path, key_path = protect_file(src, master_secret=b"master-a12")
         stok = read_stok(stok_path)
+        if not _field_is_persisted(stok, "salt"):
+            return {
+                "_status": "N/A",
+                "_detail": (
+                    "salt is empty in .stok v2 by design — the KDF salt lives in "
+                    "kdf_params and coherence is a public-view metric, not an "
+                    "authorization oracle (upstream v0.9). Tampering an empty "
+                    "field proves nothing, so this is skipped rather than "
+                    "reported as a pass."
+                ),
+                "salt_len": len(stok.salt or b""),
+                "format_version": getattr(stok, "version", None),
+            }
+
         stok.salt = _os.urandom(len(stok.salt))
         write_stok(stok, stok_path)
         pt, info = open_stok(stok_path, master_secret=b"master-a12", key_path=key_path)
-        ok = pt is None and info.get("header_mac_ok") is False
+        ok = _fails_closed(pt, info)
         return {
             "plaintext_is_none": pt is None,
-            "header_mac_ok": info.get("header_mac_ok"),
+            "status": info.get("status"),
             "_status": "PASS" if ok else "FAIL",
             "_detail": "" if ok else "tampered salt accepted",
+        }
+
+
+def case_a18_self_consistent_label_forgery() -> Dict[str, Any]:
+    """A18 — Forging public_label *and* the stored aad together must still fail.
+
+    A11 alone cannot distinguish a real cryptographic binding from a mere
+    consistency check between two fields the attacker controls. Here the attacker
+    rewrites public_label and recomputes the stored `aad` to match, which defeats
+    any implementation that only compares the two. It must still fail closed,
+    because the AEAD tag was produced over the original label.
+    """
+    skip = _full_stack_or_skip()
+    if skip:
+        return skip
+
+    from smart_token_prod import protect_file, open_stok, read_stok, write_stok
+
+    try:
+        from smart_token_prod.core import expected_aad
+    except ImportError:
+        return {
+            "_status": "N/A",
+            "_detail": (
+                "smart_token_prod.core.expected_aad is absent — the installed "
+                "version predates the v0.10.3 AAD rebinding, so this forgery "
+                "cannot be constructed against the canonical derivation."
+            ),
+        }
+
+    with tempfile.TemporaryDirectory(prefix="a18-") as tmp:
+        tmp = Path(tmp)
+        src = tmp / "doc.bin"
+        src.write_bytes(b"payload-a18-secret")
+        stok_path, key_path = protect_file(src, master_secret=b"master-a18")
+
+        forged = b"FORGED-LABEL-A18"
+        stok = read_stok(stok_path)
+        original_label = bytes(stok.public_label)
+        stok.public_label = forged
+        stok.aad = expected_aad(forged)  # keep the header self-consistent
+        write_stok(stok, stok_path)
+
+        pt, info = open_stok(stok_path, master_secret=b"master-a18", key_path=key_path)
+        ok = _fails_closed(pt, info)
+        return {
+            "original_label": original_label.decode("utf-8", "replace"),
+            "forged_label": forged.decode(),
+            "stored_aad_matches_forged_label": True,
+            "plaintext_is_none": pt is None,
+            "status": info.get("status"),
+            "_status": "PASS" if ok else "FAIL",
+            "_detail": "" if ok else "self-consistent label forgery was accepted",
         }
 
 
@@ -714,10 +865,11 @@ CASES = [
     ("A7", "Friction persistence across opens", case_a7_friction_persistence),
     ("A8", "Legitimate round-trip", case_a8_legitimate_roundtrip),
     ("A9", "Coherence/material mismatch fails closed", case_a9_coherence_mismatch),
-    ("A10", "Tampered friction_snapshot fails header MAC", case_a10_tamper_friction_snapshot),
-    ("A11", "Tampered public_label fails header MAC", case_a11_tamper_metadata_label),
-    ("A12", "Tampered salt fails header MAC", case_a12_tamper_salt),
+    ("A10", "Tampered friction_snapshot fails friction MAC", case_a10_tamper_friction_snapshot),
+    ("A11", "Tampered public_label fails closed (AAD rebind)", case_a11_tamper_metadata_label),
+    ("A12", "Tampered salt fails closed", case_a12_tamper_salt),
     ("A15", "Mixed .stok A + key B fails closed", case_a15_mix_stok_and_key),
+    ("A18", "Self-consistent public_label forgery fails closed", case_a18_self_consistent_label_forgery),
     ("A17", "Truncated .stok fails closed", case_a17_truncated_file),
 ]
 
@@ -748,7 +900,7 @@ def render_human(report: BatteryReport) -> str:
         lines.append(f"[{c.status:4}] {c.id}  {c.title}  ({c.duration_ms:.1f} ms)")
         if c.detail:
             lines.append(f"         detail: {c.detail}")
-        if c.evidence and c.status != "SKIP":
+        if c.evidence and c.status not in ("SKIP", "N/A"):
             # Compact evidence
             ev = {k: v for k, v in c.evidence.items() if not k.startswith("_")}
             lines.append(f"         evidence: {json.dumps(ev, default=str)}")
@@ -757,7 +909,8 @@ def render_human(report: BatteryReport) -> str:
     lines.append("-" * 72)
     lines.append(
         f"SUMMARY  passed={s['passed']}  failed={s['failed']}  "
-        f"skipped={s['skipped']}  total={s['total']}  ok={s['ok']}"
+        f"skipped={s['skipped']}  n/a={s['not_applicable']}  "
+        f"total={s['total']}  ok={s['ok']}"
     )
     lines.append("=" * 72)
     return "\n".join(lines)
@@ -802,6 +955,11 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     if report.failed:
         return 1
+    # Only environment-driven SKIPs block --require-full. N/A cases are properties
+    # the current .stok format deliberately does not have, so no host could ever
+    # turn them green and gating on them would make this flag unsatisfiable
+    # forever. They are printed and counted separately so the distinction is
+    # visible rather than buried.
     if args.require_full and report.skipped:
         return 2
     return 0

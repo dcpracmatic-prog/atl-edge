@@ -17,7 +17,12 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  PYTHONPATH: vendor:.
+  # smart_token_prod is an installed dependency now; there is no vendor/ copy.
+  PYTHONPATH: .
+  # The wheel does not ship cpp/, so the C++ jobs build from a source checkout of
+  # the same pinned tag. Keep this in lockstep with requirements.txt and build.sh.
+  STP_TAG: v0.10.3
+  STP_SRC: third_party/Smart-Token-Prod-v0.10.3
   PIP_INDEX_URL: https://pypi.org/simple
   PIP_TRUSTED_HOST: "pypi.org files.pythonhosted.org"
 
@@ -80,13 +85,23 @@ jobs:
             --out testbench/perf_report.md \
             --json testbench/perf_report.json
 
-      - name: Unit tests (SmartTokenProd, if present)
+      - name: Unit tests (SmartTokenProd, from the pinned tag)
         run: |
-          if [[ -f vendor/smart_token_prod/tests/test_smart_token_prod.py ]]; then
-            pytest vendor/smart_token_prod/tests/ -v --tb=short
-          else
-            echo "No unit test module present — skipped"
+          # The unit suite ships with the package repo, not the wheel, so fetch
+          # the same tag requirements.txt pins and run it against the installed
+          # package. This is what used to run out of vendor/smart_token_prod/tests.
+          if [[ ! -d "$STP_SRC" ]]; then
+            git -c advice.detachedHead=false clone -q --depth 1 \
+              --branch "$STP_TAG" \
+              https://github.com/dcpracmatic-prog/Smart-Token-Prod.git "$STP_SRC"
           fi
+          pip install pytest
+          # Build the native core first so the [native] parametrisations are real
+          # coverage instead of environment-driven failures.
+          (cd "$STP_SRC/cpp" && make libfriction.so >/dev/null)
+          cp -f "$STP_SRC/cpp/libfriction.so" \
+            "$(python -c 'import os,smart_token_prod;print(os.path.dirname(smart_token_prod.__file__))')/"
+          pytest "$STP_SRC/tests" -v --tb=short
 
       - name: Upload evidence artifacts
         if: always()
@@ -155,8 +170,19 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+
+      - name: Fetch the pinned SmartTokenProd C++ sources
+        run: |
+          # The installed wheel does not ship cpp/, so the sanitizer and
+          # static-analysis jobs build the friction core from a shallow checkout
+          # of exactly the tag requirements.txt pins.
+          test ! -d "$STP_SRC" && git -c advice.detachedHead=false clone -q \
+            --depth 1 --branch "$STP_TAG" \
+            https://github.com/dcpracmatic-prog/Smart-Token-Prod.git "$STP_SRC"
+          test -f "$STP_SRC/cpp/friction_core.cpp"
+
       - name: Build friction core with ASan+UBSan
-        working-directory: vendor/smart_token_prod/cpp
+        working-directory: third_party/Smart-Token-Prod-v0.10.3/cpp
         run: |
           # Shared lib + standalone demo, both instrumented.
           # Note: loading an ASan .so into a non-instrumented Python process
@@ -168,7 +194,7 @@ jobs:
                LDFLAGS="-fsanitize=address,undefined" demo
 
       - name: Run friction_demo under ASan/UBSan
-        working-directory: vendor/smart_token_prod/cpp
+        working-directory: third_party/Smart-Token-Prod-v0.10.3/cpp
         env:
           ASAN_OPTIONS: abort_on_error=1:detect_leaks=1:symbolize=1
           UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
@@ -205,17 +231,28 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends clang-tidy clang g++ make
 
+
+      - name: Fetch the pinned SmartTokenProd C++ sources
+        run: |
+          # The installed wheel does not ship cpp/, so the sanitizer and
+          # static-analysis jobs build the friction core from a shallow checkout
+          # of exactly the tag requirements.txt pins.
+          test ! -d "$STP_SRC" && git -c advice.detachedHead=false clone -q \
+            --depth 1 --branch "$STP_TAG" \
+            https://github.com/dcpracmatic-prog/Smart-Token-Prod.git "$STP_SRC"
+          test -f "$STP_SRC/cpp/friction_core.cpp"
+
       - name: Compile morph8 / friction with elevated warnings
         run: |
           g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -fPIC -c src/morph8.cpp -o /tmp/morph8.o
           g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -fPIC -c \
-            vendor/smart_token_prod/cpp/friction_core.cpp -o /tmp/friction_core.o
+            "$STP_SRC/cpp/friction_core.cpp" -o /tmp/friction_core.o
           echo "Warning-level compile completed"
 
       - name: clang-tidy (soft gate)
         run: |
-          clang-tidy vendor/smart_token_prod/cpp/friction_core.cpp -- \
-            -std=c++17 -I vendor/smart_token_prod/cpp -Wall -Wextra || true
+          clang-tidy "$STP_SRC/cpp/friction_core.cpp" -- \
+            -std=c++17 -I "$STP_SRC/cpp" -Wall -Wextra || true
           echo "clang-tidy finished (findings in log)"
 
       - name: Forbid precompiled native blobs in tree
@@ -253,14 +290,14 @@ jobs:
       - name: Run adversarial battery inside image
         run: |
           docker run --rm \
-            -e PYTHONPATH=/app/vendor:/app \
+            -e PYTHONPATH=/app \
             atl-edge:hardened-ci \
             python testbench/run_testbench.py --require-full --json /tmp/last_report.json
 
       - name: Run performance dossier inside image
         run: |
           docker run --rm \
-            -e PYTHONPATH=/app/vendor:/app \
+            -e PYTHONPATH=/app \
             atl-edge:hardened-ci \
             python testbench/perf_dossier.py --out /tmp/perf_report.md --json /tmp/perf_report.json
 
@@ -328,7 +365,7 @@ jobs:
 
       - name: Operator console secure-behavior selftest
         env:
-          PYTHONPATH: vendor:.
+          PYTHONPATH: .
         run: python examples/web_console_selftest.py
 
   # ------------------------------------------------------------------
@@ -372,7 +409,7 @@ jobs:
 
       - name: Day-3 demo roundtrip (connector uses node key, never the master)
         env:
-          PYTHONPATH: vendor:.
+          PYTHONPATH: .
         run: |
           set -a && source .atl/edge/edge.env && set +a
           NODE_KEY_HEX="$(python -c '
@@ -384,14 +421,14 @@ jobs:
             ATL_NODE_KEY_HEX="$NODE_KEY_HEX" \
             ATL_NODE_ID="$ATL_NODE_ID" \
             ATL_CONSOLE_TOKEN="$(cat .atl/edge/console_token.txt)" \
-            PYTHONPATH=vendor:. \
+            PYTHONPATH=. \
             python examples/mvp_demo_run.py | tee mvp_demo_transcript.txt
 
       - name: Edge refuses to start without config (fail-closed)
         run: |
           cd /tmp
           if env -u ATL_ALLOW_DEV_DEFAULTS -u ATL_MASTER_KEY_HEX -u ATL_NODE_ID \
-               PYTHONPATH="$GITHUB_WORKSPACE/vendor:$GITHUB_WORKSPACE" \
+               PYTHONPATH="$GITHUB_WORKSPACE" \
                timeout 20 python -m src.edge_api_server --host 127.0.0.1 --port 8799; then
             echo "ERROR: Edge started without configuration"
             exit 1
@@ -409,3 +446,44 @@ jobs:
           name: evidence-mvp-demo
           path: mvp_demo_transcript.txt
           retention-days: 30
+
+  # ------------------------------------------------------------------
+  # 8. Proposer reference model contract
+  #    Checks the declared model config (repo, quant, licence, context) and,
+  #    when llama-cpp-python plus a local GGUF are present, the live
+  #    constrained-decode path. It SKIPS honestly instead of pretending, and it
+  #    never downloads a model in CI.
+  # ------------------------------------------------------------------
+  proposer-model:
+    name: Proposer model contract
+    runs-on: ubuntu-latest
+    needs: [validate]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Proposer model selftest (config + honest skip)
+        env:
+          PYTHONPATH: .
+          # Left unset on purpose: the loader must never fetch a multi-GB GGUF
+          # during CI. With no local model it reports SKIP for the live path.
+          ATL_PROPOSER_ALLOW_DOWNLOAD: "0"
+        run: python examples/proposer_model_selftest.py
+
+      - name: Template backend stays the CI default (no LLM in the gate path)
+        env:
+          PYTHONPATH: .
+        run: |
+          # Guards the scope boundary from the sprint plan: broaden the cohort,
+          # never the permission. The graded evidence must not depend on an LLM.
+          python examples/proposer_selftest.py
+          python examples/proposer_intent_cohort_selftest.py

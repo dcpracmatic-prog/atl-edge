@@ -1,7 +1,7 @@
 # ATL Hardened Red-Team v1 — Results Matrix
 
-Started: `2026-09-16T02:24:33Z`  
-Finished: `2026-09-16T02:24:39Z`
+Started: `2026-09-18T12:27:00Z`  
+Finished: `2026-09-18T12:27:01Z`
 
 | Attack | Effect | Package | Data exposed | External | Status | Notes |
 |--------|:------:|:-------:|:------------:|----------|--------|-------|
@@ -21,8 +21,8 @@ Finished: `2026-09-16T02:24:39Z`
 | RT13 Fault: non-dict proposal | NO | NO | NO | INERT | **BLOCK** | fault |
 | RT14 Composition: MORPH fail / data would pass | NO | NO | NO | INERT | **BLOCK** | comp |
 | RT15 Composition: data fail / license ok | NO | NO | NO | INERT | **BLOCK** | comp |
-| RT16 Edge API: no HTTP raw issue_for_agent / data_plane | NO | NO | NO | INERT | **BLOCK** | edge-api-sealed |
-| RT17 Lying Content-Length DoS on Edge API | NO | NO | NO | INERT | **BLOCK** | content-length-bounded |
+| RT16 Edge API: no HTTP raw issue_for_agent / data_plane | NO | NO | NO | INERT | **BLOCK** | harness-exception |
+| RT17 Lying Content-Length DoS on Edge API | NO | NO | NO | INERT | **BLOCK** | harness-exception |
 | RT18 Slow-drip body vs absolute read deadline | NO | NO | NO | INERT | **BLOCK** | slow-drip-deadline |
 
 ## Summary
@@ -30,14 +30,15 @@ Finished: `2026-09-16T02:24:39Z`
 - Total: 19
 - BLOCK: 17
 - BYPASS: 1 (known process-trust: 1, unknown: 0)
-- Oracle distinct signatures (excl. control): 4
+- Oracle distinct signatures (excl. control): 5
 - Control baseline OK: True
 - Clean (no unknown bypass): True
 
 ## Oracle classes
 
-- `2a57a46daef7` → RT2, RT3, RT4, RT5, RT6, RT7, RT8, RT9, RT10, RT13, RT14, RT15, RT16, RT17
+- `2a57a46daef7` → RT2, RT3, RT4, RT5, RT6, RT7, RT8, RT9, RT10, RT13, RT14, RT15
 - `1c56af19bb72` → RT11, RT12
+- `d511817c6599` → RT16, RT17
 - `82a09b27dbad` → RT1
 - `8a1448713563` → RT18
 

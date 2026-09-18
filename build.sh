@@ -23,7 +23,7 @@ echo "    eo_probe/core/libswar_fleet.so"
 # installed package, which is where smart_token_prod.native looks for it.
 # Native friction is OPTIONAL: without it the pure-Python tarpit is used, so a
 # failure here must not fail the build.
-STP_TAG="${STP_TAG:-v0.10.2}"
+STP_TAG="${STP_TAG:-v0.10.3}"
 STP_SRC="third_party/Smart-Token-Prod-${STP_TAG}"
 
 echo "==> Building SmartTokenProd friction core (libfriction.so, optional)"

@@ -57,7 +57,7 @@ Piezas de producto ya presentes:
 - **Edge API** (`src/edge_api_server.py`): único HTTP de ejecución (`/health`, `/v1/capabilities`, `/v1/execute`). RT16–RT18 cerrados (no expone `issue_for_agent`; body + deadline).
 - **Licenciamiento** (`atlctl.py`, `src/control_plane.py`): API key de un solo uso, entitlement Ed25519, `max_nodes` / `max_agents` atómicos (SQLite o Postgres).
 - **Despliegue** (`scripts/deploy_edge.sh`): un comando host o `--docker`; contenedor fail-closed (`docker-entrypoint-edge.sh`).
-- **SmartTokenProd 0.10.2**: ML-KEM-768 + AES ligado a `master_secret` + Argon2id (64 MiB, t=2) + fricción. `pqcrypto` obligatorio; no hay fallback débil.
+- **SmartTokenProd 0.10.3**: ML-KEM-768 + AES ligado a `master_secret` + Argon2id (64 MiB, t=2) + fricción. `pqcrypto` obligatorio; no hay fallback débil.
 - **CI**: `ci.yml` / `nightly.yml` / `release.yml` (adversarial, unit, red-team, sanitizers, Docker, sidecar).
 - **Licencia comercial:** Elastic License 2.0.
 
@@ -80,7 +80,7 @@ Piezas de producto ya presentes:
 - Predigest: 20 filas/paquete; `fields` obligatorio en producción.
 - HTTP: máx. 32 handlers; sin cuota por IP avanzada ni anti-slowloris de headers.
 - MORPH: gate estructural, no IAM ni parser SQL; parser C++ sin fuzz público.
-- SmartToken: fricción file-local; `.stok` pre-0.4.5 débiles offline; HSM es stub.
+- SmartToken: fricción file-local; `.stok` con `binding_version == 1` no traen `friction_mac` (snapshot de fricción sin autenticar); HSM es stub.
 - Control plane de referencia: SQLite (o Postgres); clave Ed25519 en fichero, no KMS.
 - `node_claim` no es attestation de hardware.
 - Auditoría JSONL con hash-chain: detecta tamper si el head está protegido fuera; no es WORM.

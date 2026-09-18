@@ -40,7 +40,7 @@ else
   git commit -m "Initial commit: ATL Edge SmartToken Integrated Hardened v2
 
 - ATLP data plane + MORPH-8 gate
-- SmartTokenProd (ML-KEM + master_secret binding + header_mac)
+- SmartTokenProd (ML-KEM + master_secret binding + public_label-bound AAD + friction_mac)
 - Adversarial testbench 14/14
 - Docker, sidecar HTTP, CI/CD workflows
 - Data room evidence package"
