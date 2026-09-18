@@ -1,6 +1,6 @@
 # SmartTokenProd — Performance Dossier
 
-Generated: `2026-09-18T21:30:23Z`  
+Generated: `2026-09-18T21:39:14Z`  
 Version: `0.10.4`  
 Native friction core: **yes**
 
@@ -8,17 +8,17 @@ Native friction core: **yes**
 
 | Metric | Value |
 |--------|------:|
-| RSS before (KB) | 45344 |
-| RSS after (KB) | 522764 |
-| Dossier runtime (s) | 8.046 |
+| RSS before (KB) | 45188 |
+| RSS after (KB) | 551348 |
+| Dossier runtime (s) | 8.099 |
 
 ## Serial protect / open (artifact 65536 bytes, n=15)
 
 | Operation | mean (ms) | p50 (ms) | p95 (ms) | max (ms) |
 |-----------|----------:|---------:|---------:|---------:|
-| protect_file | 113.667 | 112.586 | 117.523 | 124.165 |
-| open (legitimate) | 113.491 | 111.369 | 119.963 | 122.561 |
-| open (forced failure + friction) | 114.726 | 113.731 | 118.008 | 120.834 |
+| protect_file | 114.655 | 114.471 | 118.671 | 126.462 |
+| open (legitimate) | 116.555 | 113.48 | 126.901 | 147.591 |
+| open (forced failure + friction) | 115.503 | 113.362 | 125.079 | 132.197 |
 
 ## Concurrent failed opens (tarpit pressure)
 
@@ -26,9 +26,9 @@ Native friction core: **yes**
 |--------|------:|
 | Workers | 8 |
 | Tasks | 16 |
-| Wall clock (ms) | 1126.78 |
-| Mean task (ms) | 502.041 |
-| Max task (ms) | 666.448 |
+| Wall clock (ms) | 1114.64 |
+| Mean task (ms) | 508.104 |
+| Max task (ms) | 673.61 |
 
 ## Notes for reviewers
 

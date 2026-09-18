@@ -267,26 +267,44 @@ def default_runtime_from_env() -> EdgeRuntime:
                 "or ATL_LICENSE_ID + ATL_ORG_ID + ATL_ENTITLEMENT_EXPIRES_AT, "
                 "or ATL_ALLOW_DEV_DEFAULTS=1 for local demos only"
             )
-    catalog = DataCatalog()
-    catalog.register(
-        DataAsset(
-            asset_id="crm",
-            name="CRM",
-            sensitivity=Sensitivity.INTERNAL,
-            fields={
-                # Aligned with template_propose defaults (id/region/status).
-                # Keep ssn out of the demo catalog; template refuses PII intents.
-                "id": Sensitivity.INTERNAL,
-                "region": Sensitivity.INTERNAL,
-                "status": Sensitivity.PUBLIC,
-            },
+    # Which catalog this node serves. A node is deployed against ONE trade, so
+    # this is deliberately a deployment choice rather than a per-request
+    # parameter: a caller cannot switch the node onto another dataset.
+    # Unknown values fail closed instead of falling back to the lab CRM.
+    catalog_name = (os.environ.get("ATL_CATALOG") or "crm").strip().lower()
+    if catalog_name == "crm":
+        catalog = DataCatalog()
+        catalog.register(
+            DataAsset(
+                asset_id="crm",
+                name="CRM",
+                sensitivity=Sensitivity.INTERNAL,
+                fields={
+                    # Aligned with template_propose defaults (id/region/status).
+                    # Keep ssn out of the demo catalog; template refuses PII intents.
+                    "id": Sensitivity.INTERNAL,
+                    "region": Sensitivity.INTERNAL,
+                    "status": Sensitivity.PUBLIC,
+                },
+            )
         )
-    )
-    access = NodeAccessPolicy(
-        node_id=node_id,
-        allowed_assets=("crm",),
-        max_sensitivity=Sensitivity.CONFIDENTIAL,
-    )
+        access = NodeAccessPolicy(
+            node_id=node_id,
+            allowed_assets=("crm",),
+            max_sensitivity=Sensitivity.CONFIDENTIAL,
+        )
+    elif catalog_name == "inventory":
+        # The real trade: the buyer's own resources and fields, classified.
+        from src.inventory_catalog import build_inventory_catalog, inventory_node_policy
+
+        catalog = build_inventory_catalog()
+        access = inventory_node_policy(node_id)
+    else:
+        raise RuntimeError(
+            f"ATL_CATALOG={catalog_name!r} is not a catalog this node knows. "
+            "Valid: 'crm' (lab) or 'inventory' (the real trade). Refusing to "
+            "start rather than silently serving the wrong dataset."
+        )
     audit = Path(os.environ.get("ATL_AUDIT_PATH", str(_PKG / ".atl" / "edge_api_audit.jsonl")))
     return EdgeRuntime(
         node_id=node_id,

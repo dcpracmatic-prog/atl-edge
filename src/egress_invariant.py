@@ -130,6 +130,7 @@ GUARDED_SOURCES: Tuple[str, ...] = (
     "src/execution_ledger.py",
     "src/data_catalog.py",
     "src/atl_core.py",
+    "src/inventory_catalog.py",
 )
 
 
@@ -164,14 +165,29 @@ def _is_egress(module: str) -> str | None:
 
 
 def scan_sources_for_egress(
-    paths: Sequence[str] | None = None, root: pathlib.Path | None = None
+    paths: Sequence[str] | None = None,
+    root: pathlib.Path | None = None,
+    allow: Sequence[str] = (),
 ) -> List[EgressFinding]:
     """Parse each guarded file and report imports that could reach the network.
 
     Uses `ast` rather than a regex so a mention inside a comment or docstring --
     for example this module's own list of banned names -- is not a false
     positive. Only real import statements count.
+
+    ``allow`` exempts named modules, and exists for exactly one case: an
+    adapter that is NOT on the sealing path and needs a transport to reach the
+    local Edge (``src/mcp_server.py`` with ``urllib.request``). It is never
+    applied to GUARDED_SOURCES -- passing ``allow`` with the default path set
+    raises, so it cannot be used to quietly punch a hole in the invariant. An
+    exempted adapter must pin itself to loopback separately.
     """
+    if allow and paths is None:
+        raise ValueError(
+            "allow= cannot be applied to GUARDED_SOURCES: the sealing path has "
+            "no exemptions. Pass explicit paths for a non-sealing adapter."
+        )
+    allowed = {a.lower() for a in allow}
     root = root or _repo_root()
     findings: List[EgressFinding] = []
     for rel in paths or GUARDED_SOURCES:
@@ -187,6 +203,8 @@ def scan_sources_for_egress(
             if isinstance(node, ast.Import):
                 for alias in node.names:
                     hit = _is_egress(alias.name)
+                    if hit and hit.lower() in allowed:
+                        continue
                     if hit:
                         findings.append(
                             EgressFinding(rel, node.lineno, hit, f"import {alias.name}")
@@ -197,6 +215,8 @@ def scan_sources_for_egress(
                     continue
                 mod = node.module or ""
                 hit = _is_egress(mod)
+                if hit and hit.lower() in allowed:
+                    continue
                 if hit:
                     names = ", ".join(a.name for a in node.names)
                     findings.append(

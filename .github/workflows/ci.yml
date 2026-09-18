@@ -549,6 +549,66 @@ jobs:
           path: /tmp/inventory_receipt.json
           if-no-files-found: warn
 
+  mcp-connector:
+    name: MCP connector (closed surface, live over stdio)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Native build
+        run: bash build.sh
+      - name: Surface stays closed at three tools
+        run: |
+          # The connector's whole claim is that it consumes ATLP and offers no
+          # way to query the data. That claim dies quietly the first time
+          # someone adds a helpful `search` tool, and nothing else would notice.
+          # --self-test injects a `query` tool and asserts THIS guard fails on
+          # it, so a guard that stopped working cannot keep reporting PASS.
+          PYTHONPATH=. python scripts/check_mcp_surface.py --self-test \
+            --json /tmp/mcp_surface.json
+      - name: Connector selftest (no Edge required)
+        run: PYTHONPATH=. python src/mcp_server.py --selftest
+      - name: Build the real dataset
+        run: PYTHONPATH=. python scripts/fetch_inventory_dataset.py
+      - name: "Live run: MCP host drives the connector over stdio"
+        run: |
+          set -euo pipefail
+          # Real subprocess, real JSON-RPC down its stdin, real Edge on
+          # loopback serving the INVENTORY catalog.
+          ATL_CATALOG=inventory bash scripts/start_stack.sh > /tmp/stack.log 2>&1
+          sleep 3
+          set -a; source .atl/edge/edge.env; set +a
+          NODEKEY=$(PYTHONPATH=. python -c "
+          import os, binascii
+          from src.data_plane import node_key
+          print(binascii.hexlify(node_key(bytes.fromhex(os.environ['ATL_MASTER_KEY_HEX']), os.environ['ATL_NODE_ID'])).decode())")
+          # The connector runs WITHOUT the provisioning master key.
+          env -u ATL_MASTER_KEY_HEX \
+            ATL_NODE_KEY_HEX="$NODEKEY" \
+            ATL_NODE_ID="$ATL_NODE_ID" \
+            ATL_PACKAGE_KEY_ID=edge-v1 \
+            ATL_CONSOLE_TOKEN="$(cat .atl/edge/console_token.txt)" \
+            PYTHONPATH=. python examples/mcp_connector_demo.py
+      - name: Stop the stack
+        if: always()
+        run: bash scripts/start_stack.sh --stop || true
+      - name: Upload stack log and surface report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-connector-evidence
+          path: |
+            /tmp/mcp_surface.json
+            /tmp/stack.log
+          if-no-files-found: warn
+
   proposer-model:
     name: Proposer model contract
     runs-on: ubuntu-latest

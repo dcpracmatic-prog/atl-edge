@@ -1,7 +1,7 @@
 # ATL Hardened Red-Team v1 — Results Matrix
 
-Started: `2026-09-18T21:30:26Z`  
-Finished: `2026-09-18T21:30:26Z`
+Started: `2026-09-18T21:39:16Z`  
+Finished: `2026-09-18T21:39:17Z`
 
 | Attack | Effect | Package | Data exposed | External | Status | Notes |
 |--------|:------:|:-------:|:------------:|----------|--------|-------|
@@ -25,7 +25,7 @@ Finished: `2026-09-18T21:30:26Z`
 | RT17 Lying Content-Length DoS on Edge API | NO | NO | NO | INERT | **BLOCK** | harness-exception |
 | RT18 Slow-drip body vs absolute read deadline | NO | NO | NO | INERT | **BLOCK** | slow-drip-deadline |
 | RT19 Egress tool sweep (premium/http/openai/shell/...) | NO | NO | NO | INERT | **BLOCK** | egress-tools-all-rejected:17 |
-| RT20 Outbound client on the sealing path | NO | NO | NO | INERT | **BLOCK** | no-egress-client:7files/32modules |
+| RT20 Outbound client on the sealing path | NO | NO | NO | INERT | **BLOCK** | no-egress-client:8files/32modules |
 
 ## Summary
 
