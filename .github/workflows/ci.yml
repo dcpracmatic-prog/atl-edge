@@ -188,10 +188,12 @@ jobs:
           # Note: loading an ASan .so into a non-instrumented Python process
           # via ctypes is unsupported and aborts; we exercise the core via
           # the linked friction_demo binary instead.
-          make asan
+          # The v0.10.3 Makefile exposes libfriction.so / demo / all / clean —
+          # there is no `asan` target, so the instrumentation is passed in.
           make clean
           make CXXFLAGS="-std=c++17 -O1 -Wall -Wextra -fPIC -fno-omit-frame-pointer -g -fsanitize=address,undefined" \
                LDFLAGS="-fsanitize=address,undefined" demo
+          test -x ./friction_demo
 
       - name: Run friction_demo under ASan/UBSan
         working-directory: third_party/Smart-Token-Prod-v0.10.3/cpp
@@ -257,10 +259,22 @@ jobs:
 
       - name: Forbid precompiled native blobs in tree
         run: |
+          # Scope: OUR source tree. third_party/ is a shallow checkout of the
+          # pinned SmartTokenProd tag that this job fetches itself, and that
+          # upstream repo does commit a prebuilt cpp/friction_demo — so it is
+          # excluded here rather than silently weakening the rule. build/ holds
+          # this job's own compilation output. Both are gitignored.
           if find . \( -name 'libfriction.so' -o -name 'libmorph8.so' -o -name 'libswar_fleet.so' -o -name 'friction_demo' \) \
-              ! -path './.git/*' | grep -q .; then
+              ! -path './.git/*' ! -path './third_party/*' ! -path './build/*' | grep -q .; then
             echo "ERROR: precompiled natives present in repository"
-            find . \( -name 'libfriction.so' -o -name 'libmorph8.so' -o -name 'libswar_fleet.so' -o -name 'friction_demo' \)
+            find . \( -name 'libfriction.so' -o -name 'libmorph8.so' -o -name 'libswar_fleet.so' -o -name 'friction_demo' \) \
+              ! -path './.git/*' ! -path './third_party/*' ! -path './build/*'
+            exit 1
+          fi
+          # And assert git itself is not tracking any of them.
+          if git ls-files | grep -E '(libfriction\.so|libmorph8\.so|libswar_fleet\.so|friction_demo)$' | grep -q .; then
+            echo "ERROR: a native blob is tracked by git"
+            git ls-files | grep -E '(libfriction\.so|libmorph8\.so|libswar_fleet\.so|friction_demo)$'
             exit 1
           fi
           echo "No precompiled natives in source tree — OK"
@@ -466,10 +480,15 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install deps
+      - name: Install deps + build natives
         run: |
+          # libmorph8.so is required: ProposalGate refuses to construct without
+          # the native MORPH gate rather than degrading to a permissive stub.
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends g++ gcc make
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          bash build.sh
 
       - name: Proposer model selftest (config + honest skip)
         env:
