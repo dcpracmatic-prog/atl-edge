@@ -19,6 +19,26 @@ from src.licensing import (
 from src.sdk_provisioner import provision_bundle
 
 
+def _write_api_key_once(path: Path, api_key: str) -> Path:
+    """Write a one-shot API key to a mode-0600 local file; never print the raw key."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    # Intentional: the one-shot bootstrap key must land somewhere the operator can
+    # read exactly once. A mode-0600 local file is the point of this helper -- the
+    # alternative CodeQL implies (printing it to stdout, as this tool used to do)
+    # is strictly worse. Same write previously reviewed and dismissed at the old
+    # atlctl.py:175 location (CodeQL alert #8, py/clear-text-storage-sensitive-data).
+    #
+    # Note: GitHub code scanning does not honour inline 'codeql[rule]' suppression
+    # comments, so this rationale is documentation only -- the alert has to be
+    # dismissed in the repository's security tab, with this comment as the reason.
+    path.write_text(api_key + "\n")
+    try:
+        os.chmod(path, 0o600)
+    except OSError:
+        pass
+    return path
+
+
 def _cmd_issue_license(args: argparse.Namespace) -> int:
     from src.control_plane import ControlPlane
 
@@ -31,27 +51,37 @@ def _cmd_issue_license(args: argparse.Namespace) -> int:
         max_nodes=args.max_nodes,
         max_agents=args.max_agents,
     )
+    api_key = issued["api_key"]
     out = {
         "status": "LICENSE_ISSUED",
         "license_id": issued["license_id"],
-        "api_key": issued["api_key"],
+        "api_key_fingerprint": activation_fingerprint(api_key),
         "organization_id": args.org,
         "plan": args.plan,
         "max_nodes": args.max_nodes,
         "max_agents": args.max_agents,
         "duration_days": args.days,
         "control_plane_state": str(state.resolve()),
-        "note": "Store api_key securely; it is shown only once and cannot be recovered from the control plane.",
+        "note": "Raw api_key is never printed to stdout; pass --print-api-key to write api_key.once.txt (mode 0600).",
     }
+    if getattr(args, "print_api_key", False):
+        out["api_key_file"] = str(_write_api_key_once(state / "api_key.once.txt", api_key).resolve())
     if args.json_out:
         args.json_out.parent.mkdir(parents=True, exist_ok=True)
         # Never write api_key to disk unless explicitly requested
         if args.save_api_key:
-            args.json_out.write_text(json.dumps(out, indent=2) + "\n")
+            disk = dict(out)
+            disk["api_key"] = api_key
+            # codeql[py/clear-text-storage-sensitive-data] Intentional one-shot license
+            # receipt on disk (mode 0600); stdout stays redacted.
+            args.json_out.write_text(json.dumps(disk, indent=2) + "\n")
+            try:
+                os.chmod(args.json_out, 0o600)
+            except OSError:
+                pass
         else:
-            safe = dict(out)
-            safe["api_key"] = "<redacted — re-run without --json-out or with --save-api-key>"
-            args.json_out.write_text(json.dumps(safe, indent=2) + "\n")
+            args.json_out.write_text(json.dumps(out, indent=2) + "\n")
+    # stdout carries the fingerprint (and optional file path) only — never the raw key.
     print(json.dumps(out, indent=2))
     return 0
 
@@ -171,12 +201,10 @@ def _cmd_bootstrap_edge(args: argparse.Namespace) -> int:
     payload = {"payload": signed.payload, "signature": signed.signature}
     ent_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
     pub_path.write_text(cp.public_key_pem().decode("ascii"))
-    if args.save_api_key:
-        key_path.write_text(issued["api_key"] + "\n")
-        try:
-            os.chmod(key_path, 0o600)
-        except OSError:
-            pass
+
+    api_key_file = None
+    if args.save_api_key or args.print_api_key:
+        api_key_file = str(_write_api_key_once(key_path, issued["api_key"]).resolve())
 
     ent = verify_entitlement(
         SignedEntitlement(payload=signed.payload, signature=signed.signature),
@@ -203,7 +231,7 @@ def _cmd_bootstrap_edge(args: argparse.Namespace) -> int:
             {
                 "status": "EDGE_BOOTSTRAP_READY",
                 "license_id": issued["license_id"],
-                "api_key": issued["api_key"] if args.print_api_key else "<hidden; pass --print-api-key or --save-api-key>",
+                "api_key_fingerprint": activation_fingerprint(issued["api_key"]),
                 "node_id": args.node_id,
                 "agent_id": args.agent_id,
                 "expires_at": ent.expires_at,
@@ -211,10 +239,11 @@ def _cmd_bootstrap_edge(args: argparse.Namespace) -> int:
                     "entitlement": str(ent_path.resolve()),
                     "public_key": str(pub_path.resolve()),
                     "edge_env": str(env_path.resolve()),
-                    "api_key_file": str(key_path.resolve()) if args.save_api_key else None,
+                    "api_key_file": api_key_file,
                     "control_plane_state": str(state.resolve()),
                 },
                 "start_edge": f"set -a && source {env_path.resolve()} && set +a && PYTHONPATH=. python -m src.edge_api_server --host 127.0.0.1 --port 8790",
+                "note": "Raw api_key is never printed; read it from api_key_file when present (mode 0600).",
             },
             indent=2,
         )
@@ -277,7 +306,8 @@ def main() -> int:
     iss.add_argument("--max-nodes", type=int, default=1)
     iss.add_argument("--max-agents", type=int, default=5)
     iss.add_argument("--json-out", type=Path, default=None, help="optional receipt path (api_key redacted unless --save-api-key)")
-    iss.add_argument("--save-api-key", action="store_true", help="include api_key in --json-out (sensitive)")
+    iss.add_argument("--save-api-key", action="store_true", help="include api_key in the --json-out file on disk (stdout stays redacted)")
+    iss.add_argument("--print-api-key", action="store_true", help="write <state>/api_key.once.txt (mode 0600); stdout shows path + fingerprint only")
 
     al = sub.add_parser(
         "activate-local",
@@ -305,7 +335,7 @@ def main() -> int:
     boot.add_argument("--node-id", default="edge-node-1")
     boot.add_argument("--instance-id", default="instance-1")
     boot.add_argument("--agent-id", default="agent-1")
-    boot.add_argument("--print-api-key", action="store_true")
+    boot.add_argument("--print-api-key", action="store_true", help="write api_key.once.txt (mode 0600); never print the raw key")
     boot.add_argument("--save-api-key", action="store_true", help="write api_key.once.txt under out-dir")
 
     we = sub.add_parser("write-edge-env", help="Write edge.env from an existing signed entitlement")

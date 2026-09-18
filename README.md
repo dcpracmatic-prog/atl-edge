@@ -11,6 +11,48 @@
 
 ---
 
+## Arranque (tres comandos)
+
+```bash
+pip install -r requirements.txt && bash build.sh   # 1. dependencias + núcleos nativos
+bash scripts/validate_all.sh                       # 2. validar el tronco antes de confiar en él
+bash scripts/start_stack.sh                        # 3. Edge :8790 + consola :8795 en loopback
+```
+
+El paso 3 imprime la URL de la consola y la ruta del token Bearer
+(`.atl/edge/console_token.txt`, modo 0600). Se detiene con
+`bash scripts/start_stack.sh --stop`.
+
+Recorrido de extremo a extremo (propuesta en lenguaje natural acotado → gate →
+sello ATLP → el conector lo abre con la **clave de nodo**, nunca con la master):
+
+```bash
+PYTHONPATH=. python examples/mvp_demo_run.py
+```
+
+**Límites y estado real de esta versión:** **[iva.md](iva.md)**.
+
+## Alcance de este MVP
+
+Este árbol es un **MVP de laboratorio demostrable**, no un producto certificado.
+Un operador arranca Edge y la consola en loopback, propone en lenguaje natural
+acotado, solo se ejecuta lo autorizado, sale un paquete ATLP con `fields`, y el
+conector lo abre con la clave de nodo.
+
+**Explícitamente fuera de alcance:**
+
+- SSO / identidad corporativa
+- HSM / KMS gestionado (la integración es un stub)
+- Despliegue multi-nodo
+- Pentest externo y certificaciones (SOC 2 y equivalentes)
+- Consola expuesta públicamente sin proxy TLS por delante
+- Postgres en producción (SQLite de referencia basta para el piloto)
+- Datos no sintéticos: la demo usa datos de laboratorio
+
+El siguiente hito ya no es MVP: es un piloto en un nodo real con datos reales.
+
+---
+
 
 ## Operator console (three-process view)
 
@@ -32,7 +74,7 @@ Start console (after Edge bootstrap / `edge.env`):
 ```bash
 export ATL_CONSOLE_TOKEN="$(openssl rand -hex 32)"
 set -a && source .atl/edge/edge.env && set +a
-PYTHONPATH=vendor:. python atlctl.py console --host 127.0.0.1 --port 8795
+PYTHONPATH=. python atlctl.py console --host 127.0.0.1 --port 8795
 # or: ATL_CONSOLE_TOKEN=... docker compose --profile console up -d web-console
 ```
 
@@ -114,8 +156,9 @@ proposal = propose("lookup from crm fields=[id, status] status=active",
 
 # Grammar backends (outlines | xgrammar | llama_cpp): require the optional stack.
 # If the backend cannot enforce grammar → ConstrainedDecodeError (fail closed)
-# or template if fallback_template=True. Never unconstrained TinyLlama prose.
-# proposal = propose(text, backend="llama_cpp", model=llm)
+# or template if fallback_template=True. Never unconstrained prose.
+# from src.proposer_model import load_proposer_model   # Qwen3-8B GGUF, Apache-2.0
+# proposal = propose(text, backend="llama_cpp", model=load_proposer_model())
 
 gate = ProposalGate(default_proposal_policy(), MorphGate())
 assert gate.check(proposal).allowed
@@ -138,7 +181,7 @@ La propuesta declara **qué campos** necesita. El predigest proyecta las filas a
 ### 5. Criptografía alineada al uso
 
 - Paquetes cortos: AES-GCM + material derivado del nodo.  
-- Archivos largos: ML-KEM-768 (post-cuántico) + AES ligado también al `master_secret` + PBKDF2 en verificadores del `.stok`.
+- Archivos largos: ML-KEM-768 (post-cuántico) + AES ligado también al `master_secret` + **Argon2id** (memory-hard) en verificadores del `.stok`.
 
 ---
 
@@ -156,7 +199,7 @@ La propuesta declara **qué campos** necesita. El predigest proyecta las filas a
 | **Licenciamiento** | Entitlement de nodo/capacidades en el camino de producción | `src/licensing.py` |
 | **Edge API** | Único HTTP de entrada al MVP | `src/edge_api_server.py` |
 | **Sidecar SmartToken** | Protect/open de artefactos por HTTP local | `src/sidecar_server.py` |
-| **SmartTokenProd** | Protección de archivos de larga duración + fricción | `vendor/smart_token_prod/` |
+| **SmartTokenProd** | Protección de archivos de larga duración + fricción | paquete instalado `smart_token_prod` (pin en `requirements.txt`) |
 | **Testbench / Red-Team** | Batería adversarial + ataques de frontera (proceso y red) | `testbench/` |
 
 ---
@@ -194,7 +237,7 @@ Equivalente local:
 bash build.sh
 bash scripts/validate_all.sh
 # o por piezas:
-PYTHONPATH=vendor:. python testbench/run_testbench.py --require-full
+PYTHONPATH=. python testbench/run_testbench.py --require-full
 PYTHONPATH=. python testbench/redteam_bypass_v1.py --require-clean
 ```
 
@@ -264,7 +307,7 @@ bash build.sh
 PYTHONPATH=. python -m src.edge_api_server --host 127.0.0.1 --port 8790
 
 # Artefactos largos (si pqcrypto está instalado)
-PYTHONPATH=vendor:. python -c "from src.long_lived_protection import status; print(status())"
+PYTHONPATH=. python -c "from src.long_lived_protection import status; print(status())"
 ```
 
 Docker:

@@ -29,9 +29,13 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
 _PKG = Path(__file__).resolve().parents[1]
-_VENDOR_STP = _PKG / "vendor" / "smart_token_prod"
-if str(_VENDOR_STP.parent) not in sys.path:
-    sys.path.insert(0, str(_VENDOR_STP.parent))
+
+# Smart Token Prod is a real installed dependency, pinned in requirements.txt to
+# a tag of github.com/dcpracmatic-prog/Smart-Token-Prod. It used to be a copy
+# under vendor/ reached by inserting that directory on sys.path, which is how the
+# data room ended up reporting 0.4.4 while the tree carried 0.4.5. There is no
+# sys.path manipulation here on purpose: if the package is missing, this module
+# reports unavailable instead of silently importing a stale copy.
 
 # ---------------------------------------------------------------------------
 # Availability probe
@@ -49,6 +53,20 @@ try:
         __version__ as STP_VERSION,
     )
     from smart_token_prod.native import is_available as native_friction_available
+
+    # 0.10.x publishes a supported façade (smart_token_prod.sdk, re-exported by
+    # smart_token_bridge.py). Use its readiness probe when present: it also
+    # checks argon2/cryptography, which a bare import does not.
+    try:
+        from smart_token_prod.sdk import is_available as _sdk_is_available
+
+        if not _sdk_is_available():
+            raise ImportError("smart_token_prod.sdk reports the crypto stack unavailable")
+    except ImportError as exc:
+        if "crypto stack unavailable" in str(exc):
+            raise
+        # Older builds without .sdk: the plain import above is the probe.
+
     SMART_TOKEN_PROD_OK = True
 except Exception as exc:  # pragma: no cover - environment dependent
     SMART_TOKEN_PROD_OK = False

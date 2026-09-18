@@ -7,7 +7,7 @@ La **visión de producto** (qué es, qué resuelve, fundamentos, capacidades) es
 | | |
 |--|--|
 | **Línea** | ATL Edge SmartToken Hardened v2 |
-| **SmartTokenProd** | 0.4.5 (PBKDF2 + binding AES ↔ master_secret) |
+| **SmartTokenProd** | 0.10.2, instalado desde `git+https://github.com/dcpracmatic-prog/Smart-Token-Prod.git@v0.10.2` (Argon2id + binding AES ↔ master_secret + lock por inodo + DENIED opaco) |
 | **Tronco** | https://github.com/dcpracmatic-prog/atl-edge-smarttoken-hardened |
 | **Licencia** | Elastic License 2.0 — [LICENSE](LICENSE), [NOTICE](NOTICE) |
 
@@ -52,7 +52,7 @@ The coherence layer remains complementary: primary telemetry, DSP regime signatu
 - **ATLP hardening**: HKDF-derived per-node key, TTL, generic `INERT` rejection, anti-replay, authentication-before-replay-cache ordering, authenticated policy/proposal fingerprints, and finite/consistent timestamp validation.
 - **Premium connector**: decrypts only with the matching node-derived key and valid package metadata. Production `from_env()` accepts `ATL_NODE_KEY_HEX`, not the provisioning master key; `from_node_key()` is the preferred explicit constructor.
 - **Coherence/observability** (`src/atl_core.py`, `src/integrations.py`): existing FieldMemory, DSP, telemetry, SWAR, AgentGuard shadow, SmartToken (LWE) and AdaptiveTrustLoop remain available as supporting control/observation components. They are not authorization gates.
-- **Long-lived protection** (`src/long_lived_protection.py` + `vendor/smart_token_prod/`): optional SmartTokenProd path (ML-KEM + master_secret-bound AES-GCM + persistent friction + `.stok`) for artifacts that outlive ATLP packages. See the dedicated section below.
+- **Long-lived protection** (`src/long_lived_protection.py` + the installed `smart_token_prod` package): optional SmartTokenProd path (ML-KEM + master_secret-bound AES-GCM + persistent friction + `.stok`) for artifacts that outlive ATLP packages. See the dedicated section below.
 
 Important: MORPH is now enforced at the **canonical MVP orchestrator seam** (`src/mvp.py`). It is not magically enforced against arbitrary code elsewhere in the repository. Production integration must route all side-effecting tool execution through `ATLDataPlaneMVP.execute_and_issue` or an equivalent mandatory gateway.
 
@@ -66,7 +66,7 @@ ATL Edge keeps two complementary cryptographic paths:
 | **ATLP** (canonical) | AES-256-GCM + HKDF per-node key + TTL + anti-replay | Short-lived packages for the premium connector |
 | **SmartTokenProd** (optional) | ML-KEM-768 + AES-256-GCM bound to `master_secret` + sequential friction + `.stok` | Long-lived files that leave the node or require human secret + out-of-band key |
 
-SmartTokenProd is vendored under `vendor/smart_token_prod/` and exposed through a thin functional API:
+SmartTokenProd is an **installed dependency** (no longer a copy under `vendor/`), pinned in `requirements.txt` to the tag `v0.10.2` of [Smart-Token-Prod](https://github.com/dcpracmatic-prog/Smart-Token-Prod). It is reached through `smart_token_prod.sdk` (re-exported by `smart_token_bridge.py`) and exposed through a thin functional API:
 
 ```python
 from src.long_lived_protection import (
@@ -79,13 +79,13 @@ if is_available():
     plaintext, info = open_artifact(stok, master_secret=b"...", key_path=key)
 ```
 
-Properties enforced by the integrated stack (**SmartTokenProd v0.4.5**):
+Properties enforced by the integrated stack (**SmartTokenProd v0.10.2**):
 
 - The AES-GCM key is derived from **both** the ML-KEM shared secret **and** the human `master_secret`. Possession of the ML-KEM secret key (`sk`) alone is not sufficient to decrypt.
-- Coherence verifiers (`salt` / `material`) in the `.stok` are derived with **PBKDF2-HMAC-SHA256** (random `kdf_salt`, default **210 000** iterations) so offline dictionary checks against the file pay a work factor. Use a **high-entropy** `master_secret` (password-manager / random bytes); PBKDF2 does not make weak passwords safe.
+- Coherence verifiers (`salt` / `material`) in the `.stok` are derived with **Argon2id** (random `kdf_salt`; defaults `time_cost=2`, `memory_cost=64 MiB`, `parallelism=1`, recorded per artifact in `kdf_params`) so offline dictionary checks against the file pay a **memory-hard** work factor — measured ~113 ms per derivation on the validation host. Use a **high-entropy** `master_secret` (password-manager / random bytes); Argon2id does not make weak passwords safe.
 - The ML-KEM secret key never travels inside the `.stok` file; it is written only to a sibling `.stok.key`.
 - Failed opens advance a sequential friction state (warning → key mutation → CPU tarpit) stored inside the `.stok` and covered by a header HMAC keyed by `master_secret` (**file-local** persistence — not a distributed lock across workers).
-- Friction slows **online** `open_*` attempts; it does **not** replace PBKDF2 for offline guessing against the `.stok` alone.
+- Friction slows **online** `open_*` attempts; it does **not** replace Argon2id for offline guessing against the `.stok` alone.
 - The native friction core (`libfriction.so`) is optional; a pure-Python backend is used when the library is absent. Python and C++ backends match on friction state and `working_key` after the 2nd failure (mutation path). `pqcrypto` is required for SmartTokenProd itself.
 - If `pqcrypto` is not installed the module reports `is_available() == False` and raises a clear error; it never falls back to a weaker crypto path.
 - **Format note:** `.stok` files created before v0.4.5 (no `kdf_salt`) still open with a legacy verifier (weak offline); re-protect important artifacts with v0.4.5+.
@@ -335,8 +335,8 @@ Entregables orientados a due diligence:
 # Validación completa en host
 pip install -r requirements.txt
 bash build.sh
-PYTHONPATH=vendor:. python testbench/run_testbench.py --require-full
-PYTHONPATH=vendor:. python testbench/perf_dossier.py
+PYTHONPATH=. python testbench/run_testbench.py --require-full
+PYTHONPATH=. python testbench/perf_dossier.py
 
 # O vía Docker
 docker compose up --build -d
@@ -373,7 +373,7 @@ El repositorio incluye tres workflows en `.github/workflows/`:
 ### Criterio de verde del CI
 
 1. `testbench/run_testbench.py --require-full` → adversarial SmartTokenProd 14/14, 0 SKIP  
-2. `pytest vendor/smart_token_prod/tests` → suite unitaria en verde (incluye KDF + paridad nativa)  
+2. `smart-token doctor` → dependencias y núcleo nativo en verde (la suite unitaria vive ahora en el repo del paquete)  
 3. `testbench/redteam_bypass_v1.py --require-clean` → sin bypass desconocidos (RT0–RT18)  
 4. Imagen Docker construible y testbench dentro del contenedor  
 5. Sidecar SmartTokenProd `/health` responde  
@@ -429,7 +429,7 @@ Verificación: **RT16–RT18** en `testbench/redteam_bypass_v1.py`.
 | **Predigest** | Proyecta filas a `fields` → paquete con la **información mínima útil**. Tope operativo **`max_records=20`** por paquete ATLP. |
 | **ATLP** | Cifra el predigest (AES-GCM, TTL, anti-replay local, clave de nodo). |
 | **Edge API** | Único HTTP al MVP; allowlist de rutas; body acotado + deadline; **tope de concurrencia** (503 si se excede). |
-| **SmartTokenProd v0.4.5** | Archivos de larga duración: ML-KEM + AES ligado a `master_secret` + **PBKDF2** + fricción + header MAC. |
+| **SmartTokenProd v0.10.2** | Archivos de larga duración: ML-KEM + AES ligado a `master_secret` + **Argon2id** + fricción + header MAC + lock por inodo. |
 
 **Nota:** MORPH valida la *petición*; la minimización de columnas es `fields` + `predigest_records`. En **`ATLDataPlaneMVP.production()`** y en el Edge API, **`fields` es obligatorio** (fail-closed).
 
@@ -438,7 +438,7 @@ Verificación: **RT16–RT18** en `testbench/redteam_bypass_v1.py`.
 | Tema | Estado |
 |------|--------|
 | AES solo con `sk` sin `master_secret` | Cerrado (binding) |
-| Diccionario offline barato en `.stok` **nuevos** | Cerrado (PBKDF2 + `kdf_salt`, v0.4.5) |
+| Diccionario offline barato en `.stok` **nuevos** | Cerrado (Argon2id memory-hard + `kdf_salt`, v0.10.2) |
 | HTTP expone `issue_for_agent` / data plane | Cerrado (RT16) |
 | Content-Length mentiroso / silencio | Cerrado (RT17) |
 | Goteo lento del body | Cerrado (RT18) |

@@ -57,7 +57,7 @@ Piezas de producto ya presentes:
 - **Edge API** (`src/edge_api_server.py`): único HTTP de ejecución (`/health`, `/v1/capabilities`, `/v1/execute`). RT16–RT18 cerrados (no expone `issue_for_agent`; body + deadline).
 - **Licenciamiento** (`atlctl.py`, `src/control_plane.py`): API key de un solo uso, entitlement Ed25519, `max_nodes` / `max_agents` atómicos (SQLite o Postgres).
 - **Despliegue** (`scripts/deploy_edge.sh`): un comando host o `--docker`; contenedor fail-closed (`docker-entrypoint-edge.sh`).
-- **SmartTokenProd 0.4.5**: ML-KEM-768 + AES ligado a `master_secret` + PBKDF2 210k + fricción. `pqcrypto` obligatorio; no hay fallback débil.
+- **SmartTokenProd 0.10.2**: ML-KEM-768 + AES ligado a `master_secret` + Argon2id (64 MiB, t=2) + fricción. `pqcrypto` obligatorio; no hay fallback débil.
 - **CI**: `ci.yml` / `nightly.yml` / `release.yml` (adversarial, unit, red-team, sanitizers, Docker, sidecar).
 - **Licencia comercial:** Elastic License 2.0.
 
@@ -253,7 +253,7 @@ Criterio: `build.sh` produce nativos (`morph8`, friction opcional) y **no** hay 
 
 ```bash
 bash scripts/validate_all.sh
-PYTHONPATH=vendor:. python testbench/run_testbench.py --require-full
+PYTHONPATH=. python testbench/run_testbench.py --require-full
 PYTHONPATH=. python testbench/redteam_bypass_v1.py --require-clean
 PYTHONPATH=. python examples/e2e_full_stack_selftest.py
 ```
@@ -336,7 +336,7 @@ Criterio: push HMAC válido entrega predigest; firma falsa → 401; replay → r
 ### Fase 6 — Artefactos largos
 
 ```bash
-PYTHONPATH=vendor:. python -c "from src.long_lived_protection import status; print(status())"
+PYTHONPATH=. python -c "from src.long_lived_protection import status; print(status())"
 # Proteger un modelo/dummy vía consola o API sidecar :8787
 ```
 
@@ -346,7 +346,7 @@ Criterio: `is_available()==True` solo con `pqcrypto`. Abrir con secreto incorrec
 
 ```bash
 docker compose run --rm testbench
-PYTHONPATH=vendor:. python testbench/perf_dossier.py
+PYTHONPATH=. python testbench/perf_dossier.py
 # Entregar:
 #  data_room/ + testbench/redteam_report.json + last_report.json
 #  + este documento + logs de health de edge/console/sidecar
@@ -368,7 +368,7 @@ Usar como go/no-go. Sin exploits: solo propiedades.
 | A6 | Consola loopback por defecto | `ss`/`docker port` no en 0.0.0.0 salvo flag | |
 | A7 | ATLP sigue AES-GCM (no HMAC-JSON) | grep/tests de `PackageCrypto` / selftest data_plane | |
 | A8 | `fields` obligatorio en prod | execute sin fields = error | |
-| A9 | SmartToken binding + PBKDF2 | testbench 14/14 | |
+| A9 | SmartToken binding + Argon2id | testbench 14/14 | |
 | A10 | Fail-closed sin master | arranque Edge sin env muere | |
 | A11 | Conector sin master de provisionamiento | inspección de bundle + env | |
 | A12 | Firestore/Gemini ausentes del data-plane | no hay credenciales GCP en compose de Edge | |

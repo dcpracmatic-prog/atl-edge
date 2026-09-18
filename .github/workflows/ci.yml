@@ -301,6 +301,7 @@ jobs:
           echo "health:"; cat /tmp/health.json; echo
           curl -sf http://127.0.0.1:8787/v1/status | tee /tmp/status.json
           python -c 'import json; s=json.load(open("/tmp/health.json")); assert s.get("ok") is True'
+          python -c 'import json; s=json.load(open("/tmp/status.json")); assert "smart_token_prod_available" in s'
 
   # ------------------------------------------------------------------
   # 6. Operator console secure-behavior selftest
@@ -329,3 +330,82 @@ jobs:
         env:
           PYTHONPATH: vendor:.
         run: python examples/web_console_selftest.py
+
+  # ------------------------------------------------------------------
+  # 7. One-command stack + Day-3 MVP demo roundtrip
+  #    propose -> gate -> execute -> connector open (node key, no master)
+  # ------------------------------------------------------------------
+  mvp-demo:
+    name: One-command stack + MVP demo
+    runs-on: ubuntu-latest
+    needs: [validate]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deps + build natives
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends g++ gcc make
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          bash build.sh
+
+      - name: Start the stack with one command
+        run: bash scripts/start_stack.sh
+
+      - name: Edge and console are on loopback
+        run: |
+          curl -sf http://127.0.0.1:8790/health >/dev/null
+          curl -sf http://127.0.0.1:8795/health >/dev/null
+          # Console rejects an unauthenticated call.
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8795/api/status)" = "401"
+          # Console does not issue licenses.
+          TOKEN="$(cat .atl/edge/console_token.txt)"
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+            -d '{}' http://127.0.0.1:8795/api/environments/license)" = "404"
+
+      - name: Day-3 demo roundtrip (connector uses node key, never the master)
+        env:
+          PYTHONPATH: vendor:.
+        run: |
+          set -a && source .atl/edge/edge.env && set +a
+          NODE_KEY_HEX="$(python -c '
+          import binascii, os
+          from src.data_plane import node_key
+          print(binascii.hexlify(node_key(bytes.fromhex(os.environ["ATL_MASTER_KEY_HEX"]), os.environ["ATL_NODE_ID"])).decode())
+          ')"
+          env -u ATL_MASTER_KEY_HEX \
+            ATL_NODE_KEY_HEX="$NODE_KEY_HEX" \
+            ATL_NODE_ID="$ATL_NODE_ID" \
+            ATL_CONSOLE_TOKEN="$(cat .atl/edge/console_token.txt)" \
+            PYTHONPATH=vendor:. \
+            python examples/mvp_demo_run.py | tee mvp_demo_transcript.txt
+
+      - name: Edge refuses to start without config (fail-closed)
+        run: |
+          cd /tmp
+          if env -u ATL_ALLOW_DEV_DEFAULTS -u ATL_MASTER_KEY_HEX -u ATL_NODE_ID \
+               PYTHONPATH="$GITHUB_WORKSPACE/vendor:$GITHUB_WORKSPACE" \
+               timeout 20 python -m src.edge_api_server --host 127.0.0.1 --port 8799; then
+            echo "ERROR: Edge started without configuration"
+            exit 1
+          fi
+          echo "Edge refused to start without configuration — OK"
+
+      - name: Stop the stack
+        if: always()
+        run: bash scripts/start_stack.sh --stop || true
+
+      - name: Upload demo transcript
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidence-mvp-demo
+          path: mvp_demo_transcript.txt
+          retention-days: 30

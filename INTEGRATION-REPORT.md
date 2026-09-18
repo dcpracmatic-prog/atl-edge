@@ -63,9 +63,9 @@ set -a && source .atl/edge/edge.env && set +a
 export ATL_DATA_DIR=.atl/edge-data
 export ATL_CONSOLE_TOKEN="$(openssl rand -hex 32)"
 
-PYTHONPATH=vendor:. python -m src.edge_api_server --host 127.0.0.1 --port 8790 &
-PYTHONPATH=vendor:. python atlctl.py console --host 127.0.0.1 --port 8795 --data-dir "$ATL_DATA_DIR" &
-PYTHONPATH=vendor:. python -m src.sidecar_server --host 127.0.0.1 --port 8787 &
+PYTHONPATH=. python -m src.edge_api_server --host 127.0.0.1 --port 8790 &
+PYTHONPATH=. python atlctl.py console --host 127.0.0.1 --port 8795 --data-dir "$ATL_DATA_DIR" &
+PYTHONPATH=. python -m src.sidecar_server --host 127.0.0.1 --port 8787 &
 ```
 
 Docker (when available):

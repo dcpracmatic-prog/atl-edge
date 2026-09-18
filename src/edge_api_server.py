@@ -99,7 +99,11 @@ class EdgeRuntime:
         node_access: NodeAccessPolicy,
         audit_path: Path,
     ) -> None:
-        crypto = PackageCrypto.from_master(master, node_id, key_id="edge-v1")
+        # Sealing key_id must match what the downstream connector is provisioned
+        # with (CloudDecryptConnector.from_env reads ATL_PACKAGE_KEY_ID), so both
+        # sides read the same variable. Default keeps existing behaviour.
+        key_id = os.environ.get("ATL_PACKAGE_KEY_ID", "").strip() or "edge-v1"
+        crypto = PackageCrypto.from_master(master, node_id, key_id=key_id)
         audit_path.parent.mkdir(parents=True, exist_ok=True)
         audit = OnPremAuditLog(audit_path)
         # Private — not attached to the HTTP handler.

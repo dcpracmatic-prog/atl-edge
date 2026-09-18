@@ -5,8 +5,11 @@
 
 FROM python:3.12-slim-bookworm AS build
 
+# git + ca-certificates are required: requirements.txt pins smart-token-prod to a
+# git tag, and build.sh fetches that same tag's cpp/ sources for the optional
+# native friction core (the wheel does not ship them).
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        g++ gcc make \
+        g++ gcc make git ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src
@@ -29,13 +32,15 @@ COPY --from=build /usr/local/lib/python3.12/site-packages /usr/local/lib/python3
 COPY --from=build /usr/local/bin /usr/local/bin
 COPY --from=build /src /app
 
-# Ensure native libs are present and discoverable
-RUN test -f /app/vendor/smart_token_prod/libfriction.so \
+# Ensure native libs are present and discoverable. libfriction.so also lives in
+# the copied site-packages next to smart_token_prod, which is where ctypes finds it.
+RUN test -f /app/build/libfriction.so \
     && test -f /app/build/libmorph8.so \
+    && test -f /usr/local/lib/python3.12/site-packages/smart_token_prod/libfriction.so \
     && chown -R atl:atl /app
 
 USER atl
-ENV PYTHONPATH=/app/vendor:/app
+ENV PYTHONPATH=/app
 ENV ATL_DATA_DIR=/data
 
 EXPOSE 8787 8790 8795

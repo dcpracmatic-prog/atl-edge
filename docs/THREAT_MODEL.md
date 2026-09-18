@@ -56,21 +56,26 @@ La batería A1–A12, A15, A17 debe reportar `failed=0` y `skipped=0`.
 Antes de un despliegue con datos sensibles: auditoría externa centrada en SmartTokenProd + ATLP y en la política de exposición del sidecar.
 
 
-## Offline dictionary against master_secret (addressed in v0.4.5)
+## Offline dictionary against master_secret (addressed in v0.4.5, strengthened in v0.10.2)
 
 **Previous risk:** `salt` / `material` were `SHA-256(master_secret || …)` with no work factor and
 were stored in cleartext inside the `.stok`. An attacker with only the file could test password
 candidates offline without calling `open_stok` and without advancing friction.
 
-**Mitigation (v0.4.5+):**
+**Mitigation (v0.10.2; v0.4.5 used PBKDF2 for the same purpose):**
 - Random `kdf_salt` (16 bytes) stored in the `.stok`
-- `salt` / `material` derived via **PBKDF2-HMAC-SHA256** (`kdf_iterations`, default **210_000**)
+- `salt` / `material` derived via **Argon2id** (defaults `time_cost=2`,
+  `memory_cost=64 MiB`, `parallelism=1`, recorded per artifact in the `.stok`
+  `kdf_params`). Argon2id is memory-hard, so unlike the previous
+  PBKDF2-HMAC-SHA256 (210 000 iterations) it also penalises GPU and ASIC
+  attackers, not just sequential CPU ones. Measured cost on the validation host:
+  ~113 ms per derivation, and every failed `open_*` attempt pays it.
 - Each offline guess pays the KDF cost; friction remains the online slowdown on `open_*`
 - AES-GCM key still requires `ss` (from `sk`) **and** `master_secret`
 - Legacy files without `kdf_salt` still open with the old verifier (documented as weak)
 
 **Operational requirement:** `master_secret` must remain high-entropy (password manager /
-random bytes). PBKDF2 slows dictionary attacks; it does not make `"password123"` safe.
+random bytes). Argon2id slows dictionary attacks; it does not make `"password123"` safe.
 
 ## Native friction parity
 
