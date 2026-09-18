@@ -16,7 +16,7 @@ services:
       - ${ATL_EDGE_DIR:-./.atl/edge}:/secrets:ro
       - atl-edge-data:/data
     environment:
-      PYTHONPATH: /app/vendor:/app
+      PYTHONPATH: /app
       ATL_DATA_DIR: /data
       ATL_HOST: "0.0.0.0"
       ATL_PORT: "8790"
@@ -50,7 +50,7 @@ services:
     volumes:
       - atl-data:/data
     environment:
-      PYTHONPATH: /app/vendor:/app
+      PYTHONPATH: /app
       ATL_DATA_DIR: /data
     command: ["python", "-m", "src.sidecar_server", "--host", "0.0.0.0", "--port", "8787"]
     healthcheck:
@@ -65,7 +65,7 @@ services:
     profiles: ["test"]
     working_dir: /app
     environment:
-      PYTHONPATH: /app/vendor:/app
+      PYTHONPATH: /app
     command: ["python", "testbench/run_testbench.py", "--require-full", "--json", "/tmp/last_report.json"]
 
   bench:
@@ -74,7 +74,7 @@ services:
     profiles: ["bench"]
     working_dir: /app
     environment:
-      PYTHONPATH: /app/vendor:/app
+      PYTHONPATH: /app
     command: ["python", "testbench/perf_dossier.py", "--out", "/tmp/perf_report.md"]
 
   web-console:
@@ -87,7 +87,7 @@ services:
       - ${ATL_EDGE_DIR:-./.atl/edge}:/secrets:ro
       - atl-edge-data:/data
     environment:
-      PYTHONPATH: /app/vendor:/app
+      PYTHONPATH: /app
       ATL_DATA_DIR: /data
       ATL_CONSOLE_TOKEN: ${ATL_CONSOLE_TOKEN:-}
       # Container-internal listen only; host publish is already 127.0.0.1:8795.

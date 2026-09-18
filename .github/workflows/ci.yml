@@ -308,6 +308,16 @@ jobs:
             atl-edge:hardened-ci \
             python testbench/run_testbench.py --require-full --json /tmp/last_report.json
 
+      - name: Run the documented buyer command (docker compose run testbench)
+        run: |
+          # data_room/ tells a buyer to confirm the battery with
+          # `docker compose run --rm testbench`. Until now nothing tested that
+          # exact command -- CI used a hand-rolled `docker run`, so the compose
+          # service could rot (it did: it carried PYTHONPATH=/app/vendor:/app
+          # long after vendor/ was deleted) while CI stayed green.
+          docker compose build testbench
+          docker compose run --rm testbench
+
       - name: Run performance dossier inside image
         run: |
           docker run --rm \
@@ -468,6 +478,35 @@ jobs:
   #    constrained-decode path. It SKIPS honestly instead of pretending, and it
   #    never downloads a model in CI.
   # ------------------------------------------------------------------
+  egress-invariant:
+    name: Product invariant (no outbound calls)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Assert the node initiates nothing
+        run: |
+          # Two halves: the gate policy cannot admit an egress tool, and no
+          # module on the sealing path imports a client that can leave the box.
+          # --self-test injects violations into a scratch copy and asserts the
+          # guard catches them, so a guard that silently stopped working cannot
+          # keep reporting PASS.
+          python scripts/check_egress_invariant.py --self-test --json /tmp/egress_invariant.json
+      - name: Upload invariant evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: egress-invariant-evidence
+          path: /tmp/egress_invariant.json
+          if-no-files-found: warn
+
   proposer-model:
     name: Proposer model contract
     runs-on: ubuntu-latest

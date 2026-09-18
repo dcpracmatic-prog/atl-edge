@@ -2,7 +2,7 @@
 # Container entrypoint for Edge API. Expects secrets via env or mounted edge.env.
 set -euo pipefail
 cd /app
-export PYTHONPATH=/app/vendor:/app
+export PYTHONPATH=/app
 
 if [[ -f /secrets/edge.env ]]; then
   set -a

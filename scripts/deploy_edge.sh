@@ -17,7 +17,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
-export PYTHONPATH="${ROOT}/vendor:${ROOT}${PYTHONPATH:+:$PYTHONPATH}"
+export PYTHONPATH="${ROOT}${PYTHONPATH:+:$PYTHONPATH}"
 
 EDGE_DIR="${ATL_EDGE_DIR:-$ROOT/.atl/edge}"
 CP_STATE="${ATL_CP_STATE:-$ROOT/.atl/control-plane}"

@@ -140,6 +140,72 @@ ATLP uses AES-256-GCM. The package key is derived per node with HKDF-SHA256. In 
 
 The on-prem audit log records issuance and reduction metrics and now uses a tamper-evident hash chain. This detects modification/reordering when the chain head is protected externally; it is not itself immutable/WORM storage. The package carries authenticated policy/proposal fingerprints plus metadata required by the protocol and the predigested payload.
 
+## Invariante de producto: el nodo no inicia llamadas
+
+Regla, escrita una sola vez para que pueda citarse en un contrato:
+
+> Un nodo ATL no inicia llamadas de red. No llama a proveedores de modelos de
+> pago, ni a APIs de agentes, ni a ningún servicio remoto. Recibe una propuesta,
+> decide, lee en local, sella un paquete ATLP y se detiene. Quien consume el
+> paquete es otro proceso, al otro lado de la frontera.
+
+Dicho en los términos comerciales: **el nodo no es cliente de un LLM premium.**
+Si un agente de pago participa, participa *después*, abriendo el paquete con su
+clave de nodo. Nunca al revés.
+
+### Por qué es un invariante probado y no un párrafo
+
+El modo de fallo es silencioso. Un `import requests` y un `POST` en un executor
+bastan para que la afirmación sea falsa mientras toda la batería sigue verde. Y
+es justo la afirmación que decide si ATL es comprable en una casa regulada: "sus
+datos no salen y aquí nada llama a un proveedor" es un producto distinto de
+"pasamos sus filas al modelo de otro".
+
+### Cómo se verifica
+
+```bash
+PYTHONPATH=. python scripts/check_egress_invariant.py --self-test
+```
+
+Dos mitades, y el guard se prueba a sí mismo:
+
+| Mitad | Qué comprueba | Dónde |
+|---|---|---|
+| Política | Que la allow-list del gate no pueda admitir una tool de salida | `src/egress_invariant.py::assert_policy_forbids_egress` |
+| Código | Que ningún módulo de la ruta de sellado importe un cliente de red | `src/egress_invariant.py::scan_sources_for_egress` |
+| Auto-prueba | Que el guard **falle** cuando se inyecta una violación | `--self-test` |
+
+La mitad de política comprueba la **allow-list**, no una deny-list. Una
+deny-list solo bloquea los nombres que a alguien se le ocurrieron; la allow-list
+admite un conjunto cerrado (`lookup`, `normalize`, `validate`, `publish`) y todo
+lo demás queda fuera por construcción. La segunda mitad existe porque el gate
+solo puede rechazar *nombres* de tool: no impide que el código abra un socket por
+su cuenta. Rechazar `http` no prueba nada si `result_packaging.py` importó
+`requests`.
+
+Los módulos vigilados son `src/data_plane.py`, `src/mvp.py`,
+`src/proposal_gate.py`, `src/result_packaging.py`, `src/execution_ledger.py`,
+`src/data_catalog.py` y `src/atl_core.py`. El escaneo usa `ast`, no expresiones
+regulares, así que una mención en un comentario o docstring no es falso positivo
+y `urllib.parse` (manipulación de cadenas, sin E/S) no se marca.
+
+El invariante se afirma **desde fuera** de lo que restringe: `src/data_plane.py`
+está congelado byte a byte por el criterio 6 del go/no-go, así que nada de esto
+vive dentro de él.
+
+### Evidencia en red-team y CI
+
+- **RT19** barre las 17 tools de salida (`premium`, `http`, `openai`, `shell`,
+  `subprocess`, `webhook`, …) y exige para cada una: rechazo, executor no
+  ejecutado, **ningún paquete emitido**.
+- **RT20** afirma la ausencia de cliente de salida en la ruta de sellado.
+- Job de CI `egress-invariant` ("Product invariant (no outbound calls)"), que
+  además sube el JSON de evidencia como artifact.
+
+Verificado que ambas mitades **detectan** la fuga, no solo que hoy pasan: al
+admitir `http` y `premium` en la allow-list, la aserción de política falla con
+los dos nombres y RT19 pasa a reportar `egress-tool-admitted` marcando bypass.
+
 ## Build and tests
 
 ```bash
@@ -176,6 +242,9 @@ The legacy `DCPEngine` remains for compatibility. The canonical data-plane imple
 - Token/byte reduction is measured from actual input traffic and is not a universal percentage.
 - Node binding is not proof of hardware identity.
 - SmartToken is governance/structural linkage in this package; it is not the ATLP encryption primitive.
+- The invariant is that the node initiates no outbound call. It is NOT a claim that
+  the consumer of the package behaves well: once an authorised connector opens an
+  ATLP package with its node key, what it does with those fields is outside ATL.
 
 ## ATL consolidation: data classification, minimal results and Connector
 

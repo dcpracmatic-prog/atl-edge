@@ -4,7 +4,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
-export PYTHONPATH="${ROOT}/vendor:${ROOT}${PYTHONPATH:+:$PYTHONPATH}"
+export PYTHONPATH="${ROOT}${PYTHONPATH:+:$PYTHONPATH}"
 
 echo "============================================================"
 echo "ATL Edge + SmartTokenProd — validation"

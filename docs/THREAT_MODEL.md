@@ -38,6 +38,38 @@ Estado: **borrador técnico para due diligence**. No sustituye una auditoría ex
 4. Tampering de ciphertext o de `public_label` → fallo cerrado (A5/A11/A18). `salt` y `material` van vacíos en el formato v2 a propósito — la coherencia es métrica de vista pública, no un oráculo de autorización — así que A9/A12 se reportan **N/A**, no como aprobados.
 5. Fuerza bruta online de `master_secret` vía sidecar expuesto → mitigado solo parcialmente por fricción file-local; **no** exponer el sidecar sin autenticación de red adicional.
 
+## 4.b Invariante de dirección: el nodo no inicia llamadas
+
+Amenaza que cubre: **exfiltración por el propio nodo.** Todo lo anterior supone
+un atacante que intenta *sacar* datos del paquete. Esta entrada cubre el caso
+inverso y más aburrido de detectar: que el producto mismo se convierta en el
+canal de salida, porque alguien añadió un cliente HTTP a la ruta de sellado o
+una tool que llama a un proveedor.
+
+> Un nodo ATL no inicia llamadas de red. No llama a proveedores de modelos de
+> pago, ni a APIs de agentes, ni a ningún servicio remoto.
+
+Por qué merece una entrada propia y no una promesa: el fallo es silencioso y no
+lo detecta ninguna de las pruebas A1–A18. Un `import requests` más un `POST`
+dejan la afirmación comercial falsa con la batería entera en verde.
+
+Controles:
+
+| Control | Mecanismo | Prueba |
+|---|---|---|
+| Nombres de tool | Allow-list cerrada del gate (`lookup`, `normalize`, `validate`, `publish`) | RT19 barre 17 nombres de salida: rechazo, executor no ejecutado, sin paquete |
+| Capacidad en código | Escaneo `ast` de 7 módulos de la ruta de sellado contra 32 módulos de red | RT20 + job de CI `egress-invariant` |
+| Que el guard sirva | Inyección de violaciones en copia de trabajo | `check_egress_invariant.py --self-test` |
+
+Se comprueba la **allow-list**, no una deny-list: una deny-list solo bloquea los
+nombres previstos. Y la segunda fila existe porque el gate solo filtra *nombres*
+de tool — no impide abrir un socket directamente.
+
+Límite honesto de este invariante: dice que el nodo no llama a nadie. **No** dice
+nada sobre la conducta del consumidor del paquete. Cuando un conector autorizado
+lo abre con su clave de nodo, lo que haga con esos campos queda fuera de ATL, y
+ninguna prueba de este repositorio lo cubre.
+
 ## 5. Primitivas
 
 - ML-KEM-768 vía `pqcrypto` (intercambio de clave post-cuántico).

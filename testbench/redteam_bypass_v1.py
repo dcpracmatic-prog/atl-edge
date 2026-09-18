@@ -825,6 +825,88 @@ def attack_slow_drip_body() -> Tuple[bool, bool, bool, Optional[BaseException], 
 
 
 
+def attack_egress_tool_sweep() -> Tuple[bool, bool, bool, Optional[BaseException], str]:
+    """Every egress-flavoured tool name must be rejected, with no package issued.
+
+    RT2 already proves one name ("shell") is refused. That is not the same claim.
+    The product claim is that the node initiates NOTHING, so what has to hold is
+    that the whole family is unreachable -- premium, http, openai, webhook,
+    subprocess and the rest -- and that each rejection leaves no executor run and
+    no sealed package behind. A single name passing here falsifies the sales
+    sheet, not just a test.
+    """
+    from src.egress_invariant import FORBIDDEN_TOOL_NAMES
+
+    mvp, _, _, _ = build_stack()
+    ran: List[str] = []
+    issued: List[str] = []
+
+    for i, name in enumerate(FORBIDDEN_TOOL_NAMES):
+        flag = {"ran": False}
+
+        def executor(p, _f=flag):  # noqa: ANN001
+            _f["ran"] = True
+            return p
+
+        bad = dict(VALID_PROPOSAL)
+        bad["tool"] = name
+        try:
+            mvp.execute_and_issue(
+                bad, RECORDS, executor=executor, request_id=f"rt-egress-tool-{i}"
+            )
+            issued.append(name)  # got a package out: bypass
+        except Exception:
+            pass
+        if flag["ran"]:
+            ran.append(name)
+
+    if issued or ran:
+        return (
+            bool(ran),
+            bool(issued),
+            bool(issued),
+            None,
+            f"egress-tool-admitted:issued={issued}:ran={ran}",
+        )
+    return False, False, False, None, f"egress-tools-all-rejected:{len(FORBIDDEN_TOOL_NAMES)}"
+
+
+def attack_egress_client_on_sealing_path() -> Tuple[bool, bool, bool, Optional[BaseException], str]:
+    """No module on the sealing path may import an outbound client.
+
+    The gate can only reject tool *names*. It cannot stop code from opening a
+    socket directly, so rejecting "http" proves nothing on its own if
+    result_packaging.py quietly grew an `import requests`. This checks the
+    capability is absent from the files that turn a proposal into a package.
+    """
+    from src.egress_invariant import (
+        EGRESS_MODULES,
+        GUARDED_SOURCES,
+        scan_sources_for_egress,
+    )
+
+    try:
+        findings = scan_sources_for_egress()
+    except Exception as e:
+        return False, False, False, e, "invariant-scan-failed"
+
+    if findings:
+        return (
+            True,
+            False,
+            True,
+            None,
+            "egress-client-present:" + ";".join(str(f) for f in findings),
+        )
+    return (
+        False,
+        False,
+        False,
+        None,
+        f"no-egress-client:{len(GUARDED_SOURCES)}files/{len(EGRESS_MODULES)}modules",
+    )
+
+
 ATTACKS: List[Tuple[str, str, str, Callable]] = [
     ("RT0", "Legitimate baseline (control)", "control", attack_legitimate_baseline),
     ("RT1", "Direct DataPlane issue without gate", "morph", attack_morph_bypass_direct_executor),
@@ -845,6 +927,8 @@ ATTACKS: List[Tuple[str, str, str, Callable]] = [
     ("RT16", "Edge API: no HTTP raw issue_for_agent / data_plane", "api-boundary", attack_edge_api_no_raw_issue_surface),
     ("RT17", "Lying Content-Length DoS on Edge API", "api-dos", attack_content_length_dos),
     ("RT18", "Slow-drip body vs absolute read deadline", "api-dos", attack_slow_drip_body),
+    ("RT19", "Egress tool sweep (premium/http/openai/shell/...)", "egress", attack_egress_tool_sweep),
+    ("RT20", "Outbound client on the sealing path", "egress", attack_egress_client_on_sealing_path),
 ]
 
 
