@@ -1,7 +1,7 @@
 # ATL Hardened Red-Team v1 — Results Matrix
 
-Started: `2026-09-18T20:32:38Z`  
-Finished: `2026-09-18T20:32:39Z`
+Started: `2026-09-18T20:36:20Z`  
+Finished: `2026-09-18T20:36:21Z`
 
 | Attack | Effect | Package | Data exposed | External | Status | Notes |
 |--------|:------:|:-------:|:------------:|----------|--------|-------|
@@ -21,8 +21,8 @@ Finished: `2026-09-18T20:32:39Z`
 | RT13 Fault: non-dict proposal | NO | NO | NO | INERT | **BLOCK** | fault |
 | RT14 Composition: MORPH fail / data would pass | NO | NO | NO | INERT | **BLOCK** | comp |
 | RT15 Composition: data fail / license ok | NO | NO | NO | INERT | **BLOCK** | comp |
-| RT16 Edge API: no HTTP raw issue_for_agent / data_plane | NO | NO | NO | INERT | **BLOCK** | harness-exception |
-| RT17 Lying Content-Length DoS on Edge API | NO | NO | NO | INERT | **BLOCK** | harness-exception |
+| RT16 Edge API: no HTTP raw issue_for_agent / data_plane | NO | NO | NO | INERT | **BLOCK** | execute-failed |
+| RT17 Lying Content-Length DoS on Edge API | NO | NO | NO | INERT | **BLOCK** | content-length-bounded |
 | RT18 Slow-drip body vs absolute read deadline | NO | NO | NO | INERT | **BLOCK** | slow-drip-deadline |
 | RT19 Egress tool sweep (premium/http/openai/shell/...) | NO | NO | NO | INERT | **BLOCK** | egress-tools-all-rejected:17 |
 | RT20 Outbound client on the sealing path | NO | NO | NO | INERT | **BLOCK** | no-egress-client:7files/32modules |
@@ -38,11 +38,11 @@ Finished: `2026-09-18T20:32:39Z`
 
 ## Oracle classes
 
-- `2a57a46daef7` → RT2, RT3, RT4, RT5, RT6, RT7, RT8, RT9, RT10, RT13, RT14, RT15
+- `2a57a46daef7` → RT2, RT3, RT4, RT5, RT6, RT7, RT8, RT9, RT10, RT13, RT14, RT15, RT17
 - `1c56af19bb72` → RT11, RT12
-- `d511817c6599` → RT16, RT17
 - `50f4de30c92d` → RT19, RT20
 - `82a09b27dbad` → RT1
+- `d511817c6599` → RT16
 - `8a1448713563` → RT18
 
 ## Interpretation
