@@ -81,3 +81,4 @@ eo_probe/core/libswar_fleet.so
 __pycache__/
 *.pyc
 skills/field_engine/field_engine_v2
+third_party/

@@ -18,13 +18,13 @@ Terminal 1:
 
 ```bash
 bash build.sh
-PYTHONPATH=vendor:. python -m src.sidecar_server --host 127.0.0.1 --port 8787
+PYTHONPATH=. python -m src.sidecar_server --host 127.0.0.1 --port 8787
 ```
 
 Terminal 2:
 
 ```bash
-PYTHONPATH=vendor:. python examples/sidecar_client_quickstart.py
+PYTHONPATH=. python examples/sidecar_client_quickstart.py
 ```
 
 ## Opción C — Docker (un comando)
@@ -40,7 +40,7 @@ docker compose run --rm bench
 ```bash
 pip install -r requirements.txt
 bash build.sh
-PYTHONPATH=vendor:. python testbench/run_testbench.py --require-full
+PYTHONPATH=. python testbench/run_testbench.py --require-full
 ```
 
 Debe terminar con `failed=0 skipped=0`.

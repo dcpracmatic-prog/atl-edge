@@ -65,10 +65,10 @@ wc -c src/data_plane.py   # expect ~25014 (AES-GCM), NOT ~2810
 
 ```bash
 bash scripts/validate_all.sh
-PYTHONPATH=vendor:. python testbench/run_testbench.py --require-full
+PYTHONPATH=. python testbench/run_testbench.py --require-full
 PYTHONPATH=. python testbench/redteam_bypass_v1.py --require-clean
 PYTHONPATH=. python examples/e2e_full_stack_selftest.py
-PYTHONPATH=vendor:. python examples/web_console_selftest.py
+PYTHONPATH=. python examples/web_console_selftest.py
 ```
 
 If trunk tests are red, **stop** — do not deploy the console.
@@ -106,7 +106,7 @@ export ATL_DATA_DIR=.atl/edge-data
 export ATL_EDGE_DIR=.atl/edge
 
 # Host
-PYTHONPATH=vendor:. python -m src.web_console --host 127.0.0.1 --port 8795 --data-dir "$ATL_DATA_DIR"
+PYTHONPATH=. python -m src.web_console --host 127.0.0.1 --port 8795 --data-dir "$ATL_DATA_DIR"
 # or
 PYTHONPATH=. python atlctl.py console --host 127.0.0.1 --port 8795 --data-dir "$ATL_DATA_DIR"
 
@@ -136,7 +136,7 @@ Criteria: valid HMAC push delivers predigest; bad signature → 401; connector h
 ### Fase 6 — Long-lived artifacts
 
 ```bash
-PYTHONPATH=vendor:. python -c "from src.long_lived_protection import status; print(status())"
+PYTHONPATH=. python -c "from src.long_lived_protection import status; print(status())"
 # Protect via console POST /api/artifacts/protect or sidecar :8787
 ```
 
@@ -146,7 +146,7 @@ Criteria: `is_available()==True` only with `pqcrypto`. Wrong secret advances fri
 
 ```bash
 docker compose run --rm testbench
-PYTHONPATH=vendor:. python testbench/perf_dossier.py
+PYTHONPATH=. python testbench/perf_dossier.py
 # Collect: data_room/ + redteam_report.json + last_report.json
 #          + docs/ATL-EDGE-AUDITORIA-INTEGRACION.md
 #          + health logs for edge / console / sidecar
@@ -168,7 +168,7 @@ Copy-paste and tick after a lab run:
 | A6 | Console loopback by default | bind `127.0.0.1`; `0.0.0.0` only with `ATL_CONSOLE_BIND_PUBLIC=1` | |
 | A7 | ATLP still AES-GCM (not HMAC-JSON) | `wc -c src/data_plane.py` ≥ 20k + PackageCrypto tests | |
 | A8 | `fields` required in prod | execute without fields errors | |
-| A9 | SmartToken binding + PBKDF2 | testbench 14/14 (needs pqcrypto) | |
+| A9 | SmartToken binding + Argon2id | testbench 14/14 (needs pqcrypto) | |
 | A10 | Fail-closed without master | Edge start without env dies | |
 | A11 | Connector without provisioning master | inspect bundle + env | |
 | A12 | Firestore/Gemini absent from data-plane | no GCP creds in Edge/console compose | |
@@ -187,13 +187,13 @@ export ATL_DATA_DIR=.atl/edge-data
 export ATL_CONSOLE_TOKEN="$(openssl rand -hex 32)"
 
 # 2) Edge API :8790
-PYTHONPATH=vendor:. python -m src.edge_api_server --host 127.0.0.1 --port 8790 &
+PYTHONPATH=. python -m src.edge_api_server --host 127.0.0.1 --port 8790 &
 
 # 3) Operator console :8795
-PYTHONPATH=vendor:. python atlctl.py console --host 127.0.0.1 --port 8795 --data-dir "$ATL_DATA_DIR" &
+PYTHONPATH=. python atlctl.py console --host 127.0.0.1 --port 8795 --data-dir "$ATL_DATA_DIR" &
 
 # 4) Sidecar :8787 (optional; needs pqcrypto)
-PYTHONPATH=vendor:. python -m src.sidecar_server --host 127.0.0.1 --port 8787 &
+PYTHONPATH=. python -m src.sidecar_server --host 127.0.0.1 --port 8787 &
 ```
 
 Or with Compose:

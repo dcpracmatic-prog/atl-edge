@@ -82,13 +82,13 @@ Ticked only where a run in this tree evidences the property.
 
 ```bash
 bash scripts/validate_all.sh
-PYTHONPATH=vendor:. python testbench/run_testbench.py --require-full \
+PYTHONPATH=. python testbench/run_testbench.py --require-full \
     --json data_room/last_report.json
-PYTHONPATH=vendor:. python testbench/perf_dossier.py \
+PYTHONPATH=. python testbench/perf_dossier.py \
     --out data_room/perf_report.md --json data_room/perf_report.json
 PYTHONPATH=. python testbench/redteam_bypass_v1.py --require-clean \
     --json data_room/redteam_report.json --md data_room/redteam_matrix.md
-PYTHONPATH=vendor:. python scripts/write_data_room_report.py
+PYTHONPATH=. python scripts/write_data_room_report.py
 ```
 
 The demo roundtrip (propose → gate → execute → connector open with the node key)

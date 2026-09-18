@@ -27,7 +27,7 @@ Recorrido de extremo a extremo (propuesta en lenguaje natural acotado → gate �
 sello ATLP → el conector lo abre con la **clave de nodo**, nunca con la master):
 
 ```bash
-PYTHONPATH=vendor:. python examples/mvp_demo_run.py
+PYTHONPATH=. python examples/mvp_demo_run.py
 ```
 
 **Límites y estado real de esta versión:** **[iva.md](iva.md)**.
@@ -74,7 +74,7 @@ Start console (after Edge bootstrap / `edge.env`):
 ```bash
 export ATL_CONSOLE_TOKEN="$(openssl rand -hex 32)"
 set -a && source .atl/edge/edge.env && set +a
-PYTHONPATH=vendor:. python atlctl.py console --host 127.0.0.1 --port 8795
+PYTHONPATH=. python atlctl.py console --host 127.0.0.1 --port 8795
 # or: ATL_CONSOLE_TOKEN=... docker compose --profile console up -d web-console
 ```
 
@@ -156,8 +156,9 @@ proposal = propose("lookup from crm fields=[id, status] status=active",
 
 # Grammar backends (outlines | xgrammar | llama_cpp): require the optional stack.
 # If the backend cannot enforce grammar → ConstrainedDecodeError (fail closed)
-# or template if fallback_template=True. Never unconstrained TinyLlama prose.
-# proposal = propose(text, backend="llama_cpp", model=llm)
+# or template if fallback_template=True. Never unconstrained prose.
+# from src.proposer_model import load_proposer_model   # Qwen3-8B GGUF, Apache-2.0
+# proposal = propose(text, backend="llama_cpp", model=load_proposer_model())
 
 gate = ProposalGate(default_proposal_policy(), MorphGate())
 assert gate.check(proposal).allowed
@@ -180,7 +181,7 @@ La propuesta declara **qué campos** necesita. El predigest proyecta las filas a
 ### 5. Criptografía alineada al uso
 
 - Paquetes cortos: AES-GCM + material derivado del nodo.  
-- Archivos largos: ML-KEM-768 (post-cuántico) + AES ligado también al `master_secret` + PBKDF2 en verificadores del `.stok`.
+- Archivos largos: ML-KEM-768 (post-cuántico) + AES ligado también al `master_secret` + **Argon2id** (memory-hard) en verificadores del `.stok`.
 
 ---
 
@@ -198,7 +199,7 @@ La propuesta declara **qué campos** necesita. El predigest proyecta las filas a
 | **Licenciamiento** | Entitlement de nodo/capacidades en el camino de producción | `src/licensing.py` |
 | **Edge API** | Único HTTP de entrada al MVP | `src/edge_api_server.py` |
 | **Sidecar SmartToken** | Protect/open de artefactos por HTTP local | `src/sidecar_server.py` |
-| **SmartTokenProd** | Protección de archivos de larga duración + fricción | `vendor/smart_token_prod/` |
+| **SmartTokenProd** | Protección de archivos de larga duración + fricción | paquete instalado `smart_token_prod` (pin en `requirements.txt`) |
 | **Testbench / Red-Team** | Batería adversarial + ataques de frontera (proceso y red) | `testbench/` |
 
 ---
@@ -236,7 +237,7 @@ Equivalente local:
 bash build.sh
 bash scripts/validate_all.sh
 # o por piezas:
-PYTHONPATH=vendor:. python testbench/run_testbench.py --require-full
+PYTHONPATH=. python testbench/run_testbench.py --require-full
 PYTHONPATH=. python testbench/redteam_bypass_v1.py --require-clean
 ```
 
@@ -306,7 +307,7 @@ bash build.sh
 PYTHONPATH=. python -m src.edge_api_server --host 127.0.0.1 --port 8790
 
 # Artefactos largos (si pqcrypto está instalado)
-PYTHONPATH=vendor:. python -c "from src.long_lived_protection import status; print(status())"
+PYTHONPATH=. python -c "from src.long_lived_protection import status; print(status())"
 ```
 
 Docker:

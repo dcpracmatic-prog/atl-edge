@@ -22,6 +22,23 @@ A9  Coherence / material mismatch fails closed.\nA10 Tampered friction_snapshot 
 The battery is intentionally self-contained and CI-friendly: it never
 assumes pqcrypto is present. Cases that require the full stack are marked
 SKIPPED with a reason when the dependency is missing.
+
+Phase-3 hang and this battery
+-----------------------------
+Smart Token Prod >= 0.10.0 answers a DENIED open at ``fail_count >= 3`` with a
+deliberate, silent, **non-returning** grind (``phase3_blocking_grind``). That is
+correct product behaviour against an attacker, and it makes an assertion-based
+battery hang forever: several cases here intentionally fail an open three or more
+times and then need to *inspect* the DENIED result.
+
+So the harness disables the non-returning grind via the package's own documented
+switch, ``SMART_TOKEN_PHASE3_HANG=0``. This does not weaken anything under test:
+fail-closed behaviour, friction persistence, header MACs and key binding are all
+still exercised at full strength, and Argon2id still runs at its real cost. Only
+the *unbounded sleep* is turned off, and only inside the harness.
+
+That the grind actually engages in the default configuration is verified
+separately and with a bound, by ``testbench/phase3_hang_probe.py``.
 """
 
 from __future__ import annotations
@@ -30,6 +47,11 @@ import hashlib
 import json
 import os
 import sys
+
+# Must be set before smart_token_prod is imported anywhere below. See the module
+# docstring: without this the battery blocks forever in the phase-3 grind.
+# setdefault, so an operator can still force it back on explicitly.
+os.environ.setdefault("SMART_TOKEN_PHASE3_HANG", "0")
 import tempfile
 import time
 import traceback

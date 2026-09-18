@@ -7,7 +7,7 @@ provisioned for the connector, without the provisioning master:
     export ATL_NODE_KEY_HEX=...        # derived once by the operator
     export ATL_PACKAGE_KEY_ID=edge-v1  # must match the Edge sealing key_id
     unset ATL_MASTER_KEY_HEX
-    PYTHONPATH=vendor:. python examples/mvp_demo_run.py
+    PYTHONPATH=. python examples/mvp_demo_run.py
 
 Prints every command, request and HTTP response so the transcript itself is the
 evidence artifact. Exits non-zero if any acceptance step does not hold.

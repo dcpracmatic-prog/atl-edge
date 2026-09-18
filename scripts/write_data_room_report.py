@@ -6,13 +6,13 @@ installed vendor package, so the report cannot drift from the trunk the way a
 hand-edited one does. Run it at tag time so the report carries the tag's date
 and commit, not an older one.
 
-    PYTHONPATH=vendor:. python testbench/run_testbench.py --require-full \
+    PYTHONPATH=. python testbench/run_testbench.py --require-full \
         --json data_room/last_report.json
-    PYTHONPATH=vendor:. python testbench/perf_dossier.py \
+    PYTHONPATH=. python testbench/perf_dossier.py \
         --out data_room/perf_report.md --json data_room/perf_report.json
     PYTHONPATH=. python testbench/redteam_bypass_v1.py --require-clean \
         --json data_room/redteam_report.json --md data_room/redteam_matrix.md
-    PYTHONPATH=vendor:. python scripts/write_data_room_report.py
+    PYTHONPATH=. python scripts/write_data_room_report.py
 """
 from __future__ import annotations
 
@@ -38,7 +38,7 @@ ACCEPTANCE = [
     ("A6", "Console loopback by default", "start_stack.sh binds 127.0.0.1; public bind needs ATL_CONSOLE_BIND_PUBLIC=1"),
     ("A7", "ATLP still AES-GCM (not HMAC-JSON)", "wc -c src/data_plane.py + PackageCrypto battery"),
     ("A8", "fields required in prod", "console execute without fields -> 400; edge -> 403 INERT"),
-    ("A9", "SmartToken binding + PBKDF2", "adversarial battery, pqcrypto present"),
+    ("A9", "SmartToken binding + Argon2id", "adversarial battery, pqcrypto present"),
     ("A10", "Fail-closed without master", "Edge refuses to start without config (mvp-demo job)"),
     ("A11", "Connector without provisioning master", "MVP demo opens package with ATL_NODE_KEY_HEX, master unset"),
     ("A12", "Firestore/Gemini absent from data-plane", "no GCP credentials in Edge/console compose"),
@@ -177,13 +177,13 @@ Ticked only where a run in this tree evidences the property.
 
 ```bash
 bash scripts/validate_all.sh
-PYTHONPATH=vendor:. python testbench/run_testbench.py --require-full \\
+PYTHONPATH=. python testbench/run_testbench.py --require-full \\
     --json data_room/last_report.json
-PYTHONPATH=vendor:. python testbench/perf_dossier.py \\
+PYTHONPATH=. python testbench/perf_dossier.py \\
     --out data_room/perf_report.md --json data_room/perf_report.json
 PYTHONPATH=. python testbench/redteam_bypass_v1.py --require-clean \\
     --json data_room/redteam_report.json --md data_room/redteam_matrix.md
-PYTHONPATH=vendor:. python scripts/write_data_room_report.py
+PYTHONPATH=. python scripts/write_data_room_report.py
 ```
 
 The demo roundtrip (propose → gate → execute → connector open with the node key)
