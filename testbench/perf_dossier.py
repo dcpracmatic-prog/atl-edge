@@ -202,7 +202,7 @@ Native friction core: **{'yes' if report['native_friction'] else 'no (Python fal
   latency on that path is intentional defensive behaviour, not a throughput bug.
 - Measurements are single-host laboratory numbers; they are not an SLA.
 - Multi-worker **shared** friction state requires an external FrictionStore
-  (see `vendor/smart_token_prod/persistence.py`); file-local MAC-authenticated
+  (see `smart_token_prod/persistence.py` in the pinned package); file-local MAC-authenticated
   snapshots do not coordinate across processes.
 """
     out_md.parent.mkdir(parents=True, exist_ok=True)

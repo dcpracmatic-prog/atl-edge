@@ -148,7 +148,7 @@ directory. Do not hand-edit: rerun the commands in that script's docstring.
 
 | Check | Result |
 |-------|--------|
-| Adversarial battery | **{s['passed']}/{s['total']} PASS**, failed={s['failed']}, skipped={s['skipped']} |
+| Adversarial battery | **{s['passed']}/{s['total']} PASS**, failed={s['failed']}, skipped={s['skipped']}, n/a={s.get('not_applicable', 0)} |
 | `--require-full` | **{"PASS" if s['ok'] and s['skipped'] == 0 else "FAIL"}** |
 | pqcrypto | {env.get('pqcrypto')} |
 | Native friction (`libfriction.so`) | {perf.get('native_friction')} |
@@ -164,6 +164,14 @@ are not a hardware claim; re-measure on target hardware.
 ## Adversarial cases
 
 {rows}
+
+**Reading N/A:** a case marked N/A tests a property the current `.stok` format
+does not have by design, so no host could ever turn it green and it is not
+counted as a pass. A9 and A12 target `salt` / `material`, which are deliberately
+empty in format v2 — coherence is a public-view metric, not an authorization
+oracle. A SKIP would mean something different and worse: that this host is
+missing a dependency and the evidence is incomplete. `--require-full` fails on
+SKIP and tolerates N/A, which is why both counts are reported separately above.
 {rt}
 ## A1–A14 acceptance criteria
 

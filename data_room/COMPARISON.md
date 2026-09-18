@@ -12,20 +12,20 @@
 
 ## Qué aportaba la entrega 1 (integración)
 
-- SmartTokenProd vendored (`vendor/smart_token_prod/`) con amarre `ss || master_secret`
+- SmartTokenProd como copia en `vendor/smart_token_prod/` con amarre `ss || master_secret` (hoy es dependencia instalada y fijada al tag `v0.10.3`)
 - API `src/long_lived_protection.py`
 - Testbench adversarial inicial (muchas casos en SKIP sin pqcrypto)
 - Self-test long-lived (con assert débil luego corregido)
 - Separación ATLP vs SmartTokenProd documentada en README
 
-**No incluía:** Docker, sidecar, header MAC, dossier de rendimiento, THREAT_MODEL/QUICKSTART dedicados, script `validate_all.sh`, data room, batería 14/14 en verde.
+**No incluía:** Docker, sidecar, integridad de cabecera autenticada, dossier de rendimiento, THREAT_MODEL/QUICKSTART dedicados, script `validate_all.sh`, data room, batería adversarial en verde.
 
 ## Qué aporta la entrega 2 (Hardened v2) — superset correcto
 
 | Área | Entrega 1 | Entrega 2 (última) |
 |------|-----------|---------------------|
 | Key binding AES | Sí | Sí (igual) |
-| `header_mac` (metadata + friction autenticados) | No | **Sí** |
+| Integridad de cabecera (hoy: `friction_mac` sobre el snapshot + AAD ligado al `public_label`) | No | **Sí** |
 | Batería adversarial | Parcial / SKIP | **14/14 PASS, 0 SKIP** |
 | Docker multi-etapa | No | **Sí** (`Dockerfile`, `compose`) |
 | Sidecar HTTP | No | **Sí** (`src/sidecar_server.py`) |

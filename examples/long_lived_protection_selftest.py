@@ -13,10 +13,19 @@ import sys
 import tempfile
 from pathlib import Path
 
-# Make package importable when run from repo root
+# Make package importable when run from repo root. smart_token_prod itself is an
+# installed dependency now (pinned in requirements.txt); there is no vendor/ copy.
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "vendor"))
+
+# Step 4 below deliberately drives fail_count to 3, and from 0.10 onwards that
+# makes the next denied open enter a silent, NON-RETURNING grind against the
+# attacker. Correct product behaviour, fatal for an assertion-based self-test, so
+# turn off just the unbounded sleep using the package's own documented switch.
+# Everything else — Argon2id cost, fail-closed paths, friction persistence — runs
+# at full strength. The grind's default-on state is covered by the package's own
+# suite (test_work_factor_helpers_unit).
+os.environ.setdefault("SMART_TOKEN_PHASE3_HANG", "0")
 
 from src.long_lived_protection import (  # noqa: E402
     is_available,
@@ -70,6 +79,7 @@ def main() -> int:
             key_path=key_path,
         )
         assert pt == payload, "round-trip payload mismatch"
+        # A successful open is NOT opaque, so these keys are still present.
         assert info.get("recoverable") is True
         print(f"   recoverable={info.get('recoverable')} aes_gcm_ok={info.get('aes_gcm_ok')}")
 
@@ -80,8 +90,13 @@ def main() -> int:
             key_path=key_path,
         )
         assert pt_bad is None
-        assert info_bad.get("recoverable") is False
-        print(f"   recoverable={info_bad.get('recoverable')} (expected False)")
+        # Since 0.10 a denied open is deliberately opaque: `recoverable`,
+        # `aes_gcm_ok` and friends are stripped so the result cannot be used as
+        # an oracle for *why* it was refused. The observable contract is "no
+        # plaintext + DENIED", so assert that instead of the old key.
+        assert info_bad.get("status") == "DENIED"
+        assert info_bad.get("recoverable") is None, "denied open must stay opaque"
+        print(f"   status={info_bad.get('status')} (opaque, no plaintext)")
 
         print("\n4. Friction status after failures...")
         # Provoke a couple more failures so friction advances
@@ -94,14 +109,18 @@ def main() -> int:
         # Remove default sibling key so no resolution path remains
         if key_path.is_file():
             key_path.unlink()
-        pt_nokey, info_nokey = open_artifact(
-            stok_path,
-            master_secret=master,
-            key_path=tmp_path / "nonexistent.key",
-        )
-        assert pt_nokey is None
-        assert info_nokey.get("recoverable") is False
-        print(f"   no-key recoverable={info_nokey.get('recoverable')}")
+        # >=0.10 raises FileNotFoundError for an absent key file instead of
+        # folding it into a DENIED result. Both are fail-closed; accept either.
+        try:
+            pt_nokey, info_nokey = open_artifact(
+                stok_path,
+                master_secret=master,
+                key_path=tmp_path / "nonexistent.key",
+            )
+        except FileNotFoundError as e:
+            pt_nokey, info_nokey = None, {"status": f"raised {type(e).__name__}"}
+        assert pt_nokey is None or pt_nokey == b""
+        print(f"   no-key status={info_nokey.get('status')} (no plaintext)")
 
     print("\nAll long-lived protection checks passed.")
     return 0

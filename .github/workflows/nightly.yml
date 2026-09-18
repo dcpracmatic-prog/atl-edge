@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 env:
-  PYTHONPATH: vendor:.
+  PYTHONPATH: .
   PIP_INDEX_URL: https://pypi.org/simple
 
 jobs:

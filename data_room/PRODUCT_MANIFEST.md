@@ -8,8 +8,8 @@
 
 | Path | Why |
 |------|-----|
-| `vendor/smart_token_prod/stok.py` | header_mac, open/protect, sk out-of-band |
-| `vendor/smart_token_prod/core.py` | derive_aes_key(ss, master_secret) |
+| `smart_token_prod/stok.py` (dependencia instalada, tag `v0.10.3`) | friction_mac, AAD recalculado desde `public_label`, open/protect, sk fuera de banda |
+| `smart_token_prod/core.py` (idem) | derive_aes_key(ss, master_secret), expected_aad(public_label) |
 | `src/long_lived_protection.py` | public API for ATL |
 | `src/sidecar_server.py` | HTTP local multi-process boundary |
 | `testbench/adversarial_battery.py` | A1–A12, A15, A17 |

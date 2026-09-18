@@ -1,15 +1,28 @@
 # Optional extras for constrained local-agent proposers.
 # Do NOT install these into the default Edge runtime (keeps GPU/LLM stacks out of prod images).
 #
-# Template backend needs nothing beyond requirements.txt.
+# Template backend needs nothing beyond requirements.txt. It is what CI, the
+# red-team battery and examples/mvp_demo_run.py use, so none of the go/no-go
+# evidence depends on anything in this file.
 #
 # lm-format-enforcer path (transformers; what already runs on Kaggle):
 lm-format-enforcer>=0.10.0
 transformers>=4.40.0
 # torch is environment-specific (CPU/CUDA/ROCm) — pin in the notebook/image, not here.
 #
-# llama.cpp GBNF:
+# llama.cpp GBNF path — the reference model for src/proposer_model.py.
+# Default: Qwen/Qwen3-8B-GGUF (Apache-2.0, 8.2B params, 32k native context,
+# publisher-provided GGUF quants, llama.cpp-supported). It replaces the old
+# TinyLlama-1.1B reference, which was too small to hold a schema reliably.
+# huggingface-hub is what resolves and caches the GGUF; the loader NEVER
+# downloads implicitly — set ATL_PROPOSER_ALLOW_DOWNLOAD=1 or point
+# ATL_PROPOSER_MODEL_PATH at a local file.
 llama-cpp-python>=0.2.90
+huggingface-hub>=0.23.0
+#
+# Note on Qwen3 thinking mode: the model emits a <think> preamble by default,
+# which is unrepresentable under the Proposal Schema v1 GBNF. The grammar
+# therefore neutralises it — there is no free-form region for it to occupy.
 #
 # Experimental (mark experimental in ProposeBackend until real-model CI exists):
 # outlines>=0.0.46

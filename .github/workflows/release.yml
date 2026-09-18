@@ -12,7 +12,7 @@ on:
         default: "manual"
 
 env:
-  PYTHONPATH: vendor:.
+  PYTHONPATH: .
   PIP_INDEX_URL: https://pypi.org/simple
   PIP_TRUSTED_HOST: "pypi.org files.pythonhosted.org"
 
