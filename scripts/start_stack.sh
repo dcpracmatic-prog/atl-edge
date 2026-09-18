@@ -79,13 +79,21 @@ if [[ ! -f "$ENV_FILE" ]]; then
   bash "$ROOT/scripts/deploy_edge.sh" --bootstrap-only
 fi
 
+CONSOLE_TOKEN_FILE="$EDGE_DIR/console_token.txt"
+
 ensure_console_token() {
   if [[ -z "${ATL_CONSOLE_TOKEN:-}" ]]; then
     ATL_CONSOLE_TOKEN="$(openssl rand -hex 32 2>/dev/null || python3 -c 'import secrets; print(secrets.token_hex(32))')"
     export ATL_CONSOLE_TOKEN
-    log "ATL_CONSOLE_TOKEN was unset — generated and set for this session (not echoed)"
+    # A generated token the operator cannot read is a token that cannot be used.
+    # Write it to a mode-0600 file and print the path only — never the token.
+    mkdir -p "$EDGE_DIR"
+    umask 077
+    printf '%s\n' "$ATL_CONSOLE_TOKEN" >"$CONSOLE_TOKEN_FILE"
+    chmod 600 "$CONSOLE_TOKEN_FILE" 2>/dev/null || true
+    log "ATL_CONSOLE_TOKEN was unset — generated one; read it from $CONSOLE_TOKEN_FILE (mode 0600)"
   else
-    log "ATL_CONSOLE_TOKEN already set"
+    log "ATL_CONSOLE_TOKEN already set — using it; no token file written"
   fi
 }
 
@@ -110,6 +118,9 @@ if [[ "$MODE" == "docker" ]]; then
   echo
   echo "Operator console: http://127.0.0.1:${CONSOLE_PORT}/"
   echo "Edge API (not the app): http://127.0.0.1:${EDGE_PORT}/health"
+  if [[ -f "$CONSOLE_TOKEN_FILE" ]]; then
+    echo "Console bearer token: $CONSOLE_TOKEN_FILE (mode 0600)"
+  fi
   echo
   log "logs: docker compose --profile console logs -f edge-api web-console"
   exit 0
@@ -158,5 +169,8 @@ fi
 echo
 echo "Operator console: http://${CONSOLE_HOST}:${CONSOLE_PORT}/"
 echo "Edge API (not the app): http://${EDGE_HOST}:${EDGE_PORT}/health"
+if [[ -f "$CONSOLE_TOKEN_FILE" ]]; then
+  echo "Console bearer token: $CONSOLE_TOKEN_FILE (mode 0600)"
+fi
 echo
 log "PIDs in $RUN_DIR — stop with: bash scripts/start_stack.sh --stop"
