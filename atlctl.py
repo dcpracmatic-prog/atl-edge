@@ -26,8 +26,11 @@ def _write_api_key_once(path: Path, api_key: str) -> Path:
     # read exactly once. A mode-0600 local file is the point of this helper -- the
     # alternative CodeQL implies (printing it to stdout, as this tool used to do)
     # is strictly worse. Same write previously reviewed and dismissed at the old
-    # atlctl.py:175 location.
-    # codeql[py/clear-text-storage-sensitive-data]
+    # atlctl.py:175 location (CodeQL alert #8, py/clear-text-storage-sensitive-data).
+    #
+    # Note: GitHub code scanning does not honour inline 'codeql[rule]' suppression
+    # comments, so this rationale is documentation only -- the alert has to be
+    # dismissed in the repository's security tab, with this comment as the reason.
     path.write_text(api_key + "\n")
     try:
         os.chmod(path, 0o600)
