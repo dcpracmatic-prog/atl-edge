@@ -453,27 +453,52 @@ def _parse_requested_limit(text: str) -> Optional[int]:
     return None
 
 
-def _unknown_tool_name(text: str, resource: str) -> Optional[str]:
-    """Return an unknown explicit tool token, or None if only allowlisted tools appear."""
+def _unknown_tool_name(
+    text: str,
+    resource: str,
+    known_fields: Optional[Sequence[str]] = None,
+) -> Optional[str]:
+    """Return an unknown explicit tool token, or None if only allowlisted tools appear.
+
+    ``known_fields`` widens the *vocabulary*, never the permission. Trades other
+    than the lab CRM name their columns in snake_case (``qty_on_hand``,
+    ``last_movement_at``), which the snake_case heuristic below would otherwise
+    read as an unknown API tool and refuse. A caller that declares its catalog
+    field names gets them recognised as column identifiers instead.
+
+    This grants nothing: a recognised field name still has to survive
+    ``authorize_request`` against the node access policy, so naming
+    ``customer_id`` here only changes the *reason* it is refused (an honest
+    ``field_not_allowed`` from the access layer) rather than whether. Explicit
+    ``tool=`` syntax is deliberately still checked against the tool allowlist
+    alone -- a field name is not a way to smuggle in a tool.
+    """
     resource_l = (resource or "").lower()
-    # tool=foo
+    fields_l = {str(f).lower() for f in (known_fields or ())}
+    # tool=foo — field vocabulary deliberately does NOT apply here.
     for m in _TOOL_EQ_RE.finditer(text):
         name = m.group(1).lower()
         if name not in _ALLOWED_TOOLS and name not in _TOOL_ALIASES:
             return m.group(1)
-    # snake_case API-looking names (launch_report) — not the resource id.
+    # snake_case API-looking names (launch_report) — not the resource id,
+    # and not a declared column of the resource.
     for m in _SNAKE_TOOL_RE.finditer(text):
         name = m.group(1)
         if name.lower() == resource_l:
             continue
         if name.lower() in _ALLOWED_TOOLS or name.lower() in _TOOL_ALIASES:
             continue
+        if name.lower() in fields_l:
+            continue
         return name
     # Leading token that looks like an API tool (has underscore) and is unknown.
     lm = _LEADING_TOKEN_RE.match(text)
     if lm:
         lead = lm.group(1)
-        if "_" in lead and lead.lower() not in _ALLOWED_TOOLS and lead.lower() not in _TOOL_ALIASES:
+        if ("_" in lead
+                and lead.lower() not in _ALLOWED_TOOLS
+                and lead.lower() not in _TOOL_ALIASES
+                and lead.lower() not in fields_l):
             return lead
     return None
 
@@ -486,6 +511,7 @@ def template_propose(
     default_resource: str = "crm",
     default_fields: Optional[Sequence[str]] = ("id", "region", "status"),
     default_limit: int = 20,
+    known_fields: Optional[Sequence[str]] = None,
 ) -> Dict[str, Any]:
     """Build a Proposal Schema v1 dict from text with allowlisted heuristics.
 
@@ -522,7 +548,10 @@ def template_propose(
     if m:
         resource = m.group(1) or m.group(2)
 
-    unknown = _unknown_tool_name(text, resource)
+    # Vocabulary = the caller's declared columns plus its defaults. Recognising a
+    # column name is not authorising it; the access layer still decides.
+    vocabulary = list(known_fields or ()) + list(default_fields or ())
+    unknown = _unknown_tool_name(text, resource, vocabulary)
     if unknown is not None:
         raise ConstrainedDecodeError(
             f"template refused unknown tool {unknown!r}; fail closed"
@@ -810,6 +839,7 @@ def propose(
     default_resource: str = "crm",
     default_fields: Optional[Sequence[str]] = None,
     default_limit: int = 20,
+    known_fields: Optional[Sequence[str]] = None,
 ) -> Dict[str, Any]:
     """Propose a Proposal Schema v1 dict from user text.
 
@@ -836,6 +866,12 @@ def propose(
         When set with a grammar backend name, the call is treated as constrained
         (caller is responsible for enforcing grammar outside this process).
 
+    known_fields:
+        Column names declared by the caller's data catalog for this resource.
+        Widens the recognised *vocabulary* so snake_case column names are not
+        misread as unknown API tools. It grants no access: the node access
+        policy still decides every field.
+
     Returns
     -------
     dict
@@ -850,6 +886,7 @@ def propose(
             default_resource=default_resource,
             default_fields=default_fields,
             default_limit=default_limit,
+            known_fields=known_fields,
         )
 
     def _fallback_or_raise(err: ConstrainedDecodeError) -> Dict[str, Any]:
@@ -859,6 +896,7 @@ def propose(
                 default_resource=default_resource,
                 default_fields=default_fields,
                 default_limit=default_limit,
+                known_fields=known_fields,
             )
         raise err
 

@@ -507,6 +507,48 @@ jobs:
           path: /tmp/egress_invariant.json
           if-no-files-found: warn
 
+  inventory-trade:
+    name: Inventory trade on real data (minimisation proof)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Vocabulary widening did not widen permission
+        run: |
+          # The proposer learned the inventory column names. This asserts that
+          # only the vocabulary moved: tool= is still allowlist-only, undeclared
+          # snake_case tools still fail closed, and a declared sensitive column
+          # is still refused by the access layer.
+          PYTHONPATH=. python testbench/proposer_vocabulary_selftest.py
+      - name: Build the real dataset
+        run: |
+          # UCI "Online Retail" (CC BY 4.0). Not committed: it is third-party
+          # data, so CI fetches it and the script hard-fails if the upstream
+          # schema changed rather than silently producing different columns.
+          PYTHONPATH=. python scripts/fetch_inventory_dataset.py
+      - name: Prove the rest of the row did not leave
+        run: |
+          # Success is not "the model answered". It is: asked for
+          # sku/description/qty_on_hand, got exactly those, and
+          # unit_price_gbp / customer_id / country did not leave -- asserted on
+          # the plaintext the connector opens with the node key.
+          PYTHONPATH=. python examples/inventory_trade_demo.py \
+            --json /tmp/inventory_receipt.json
+      - name: Upload governance receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: inventory-governance-receipt
+          path: /tmp/inventory_receipt.json
+          if-no-files-found: warn
+
   proposer-model:
     name: Proposer model contract
     runs-on: ubuntu-latest

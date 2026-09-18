@@ -11,30 +11,44 @@ echo "ATL Edge + SmartTokenProd — validation"
 echo "============================================================"
 
 echo ""
-echo "==> [1/5] Python dependencies"
+echo "==> [1/8] Python dependencies"
 python3 -m pip install -q -r requirements.txt \
   --index-url https://pypi.org/simple \
   --trusted-host pypi.org --trusted-host files.pythonhosted.org
 
 echo ""
-echo "==> [2/5] Native build"
+echo "==> [2/8] Native build"
 bash build.sh
 
 echo ""
-echo "==> [3/5] Adversarial battery (--require-full)"
+echo "==> [3/8] Adversarial battery (--require-full)"
 python3 testbench/run_testbench.py --require-full --json testbench/last_report.json
 
 echo ""
-echo "==> [4/5] Performance dossier"
+echo "==> [4/8] Performance dossier"
 python3 testbench/perf_dossier.py --out testbench/perf_report.md --json testbench/perf_report.json
 
 echo ""
-echo "==> [5/6] Long-lived self-test"
+echo "==> [5/8] Long-lived self-test"
 python3 examples/long_lived_protection_selftest.py
 
 echo ""
-echo "==> [6/6] Red-Team bypass v1"
+echo "==> [6/8] Red-Team bypass v1"
 python3 testbench/redteam_bypass_v1.py --require-clean
+
+echo ""
+echo "==> [7/8] Proposer vocabulary (cohort widened, permission unchanged)"
+python3 testbench/proposer_vocabulary_selftest.py
+
+echo ""
+echo "==> [8/8] Inventory trade on real data + governance receipt"
+if python3 -c "import sys; sys.path.insert(0,'.'); from src.inventory_catalog import dataset_available; sys.exit(0 if dataset_available() else 1)"; then
+  python3 examples/inventory_trade_demo.py --json testbench/inventory_receipt.json
+else
+  echo "    Dataset not built in this environment — skipped."
+  echo "    Build it with: python3 scripts/fetch_inventory_dataset.py"
+  echo "    (CI builds it; it is not committed because it is 3rd-party CC BY data.)"
+fi
 
 echo ""
 if command -v docker >/dev/null 2>&1; then

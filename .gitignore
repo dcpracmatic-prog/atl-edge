@@ -82,3 +82,11 @@ __pycache__/
 *.pyc
 skills/field_engine/field_engine_v2
 third_party/
+
+# Third-party dataset: fetched, never vendored.
+# UCI "Online Retail" is CC BY 4.0 data owned by its author, so the repo ships
+# the attribution and the fetch script, not the rows. Rebuild with:
+#   python scripts/fetch_inventory_dataset.py
+.cache/
+datasets/inventory/*.csv
+testbench/inventory_receipt.json
