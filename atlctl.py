@@ -22,8 +22,12 @@ from src.sdk_provisioner import provision_bundle
 def _write_api_key_once(path: Path, api_key: str) -> Path:
     """Write a one-shot API key to a mode-0600 local file; never print the raw key."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    # codeql[py/clear-text-storage-sensitive-data] One-shot local bootstrap artifact
-    # (mode 0600); the operator retrieves the key from this file only.
+    # Intentional: the one-shot bootstrap key must land somewhere the operator can
+    # read exactly once. A mode-0600 local file is the point of this helper -- the
+    # alternative CodeQL implies (printing it to stdout, as this tool used to do)
+    # is strictly worse. Same write previously reviewed and dismissed at the old
+    # atlctl.py:175 location.
+    # codeql[py/clear-text-storage-sensitive-data]
     path.write_text(api_key + "\n")
     try:
         os.chmod(path, 0o600)
