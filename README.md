@@ -4,6 +4,7 @@
 [![Nightly](https://github.com/dcpracmatic-prog/atl-edge-smarttoken-hardened/actions/workflows/nightly.yml/badge.svg?branch=main)](https://github.com/dcpracmatic-prog/atl-edge-smarttoken-hardened/actions/workflows/nightly.yml)
 [![Release](https://github.com/dcpracmatic-prog/atl-edge-smarttoken-hardened/actions/workflows/release.yml/badge.svg)](https://github.com/dcpracmatic-prog/atl-edge-smarttoken-hardened/actions/workflows/release.yml)
 [![CodeQL Advanced](https://github.com/dcpracmatic-prog/atl-edge-smarttoken-hardened/actions/workflows/codeql.yml/badge.svg)](https://github.com/dcpracmatic-prog/atl-edge-smarttoken-hardened/actions/workflows/codeql.yml)
+[![Docker Image CI](https://github.com/dcpracmatic-prog/atl-edge-smarttoken-hardened/actions/workflows/docker-image.yml/badge.svg)](https://github.com/dcpracmatic-prog/atl-edge-smarttoken-hardened/actions/workflows/docker-image.yml)
 
 **Licencia:** [Elastic License 2.0](LICENSE) · [NOTICE](NOTICE)  
 **Repositorio:** [dcpracmatic-prog/atl-edge-smarttoken-hardened](https://github.com/dcpracmatic-prog/atl-edge-smarttoken-hardened)  
