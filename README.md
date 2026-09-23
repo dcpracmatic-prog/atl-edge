@@ -1,4 +1,4 @@
-# ATL Edge + SmartTokenProd
+# ATL Edge 
 
 [![CI](https://github.com/dcpracmatic-prog/atl-edge-smarttoken-hardened/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/dcpracmatic-prog/atl-edge-smarttoken-hardened/actions/workflows/ci.yml)
 [![Nightly](https://github.com/dcpracmatic-prog/atl-edge-smarttoken-hardened/actions/workflows/nightly.yml/badge.svg?branch=main)](https://github.com/dcpracmatic-prog/atl-edge-smarttoken-hardened/actions/workflows/nightly.yml)
