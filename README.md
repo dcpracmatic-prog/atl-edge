@@ -1,4 +1,4 @@
-# ATL Edge + SmartTokenProd
+# ATL Edge 
 
 [![CI](https://github.com/dcpracmatic-prog/atl-edge-smarttoken-hardened/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/dcpracmatic-prog/atl-edge-smarttoken-hardened/actions/workflows/ci.yml)
 [![Nightly](https://github.com/dcpracmatic-prog/atl-edge-smarttoken-hardened/actions/workflows/nightly.yml/badge.svg?branch=main)](https://github.com/dcpracmatic-prog/atl-edge-smarttoken-hardened/actions/workflows/nightly.yml)
@@ -7,7 +7,6 @@
 [![Docker Image CI](https://github.com/dcpracmatic-prog/atl-edge-smarttoken-hardened/actions/workflows/docker-image.yml/badge.svg)](https://github.com/dcpracmatic-prog/atl-edge-smarttoken-hardened/actions/workflows/docker-image.yml)
 
 **Licencia:** [Elastic License 2.0](LICENSE) · [NOTICE](NOTICE)  
-**Repositorio:** [dcpracmatic-prog/atl-edge-smarttoken-hardened](https://github.com/dcpracmatic-prog/atl-edge-smarttoken-hardened)  
 **Detalle de la versión actual (límites, CI, threat model operativo):** ver **[iva.md](iva.md)**
 
 ---
